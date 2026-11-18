@@ -2,47 +2,38 @@ import React from 'react';
 import { 
   ClipboardCheck, 
   ChefHat, 
-  Bike, 
   CheckCircle2, 
-  Play, 
   Clock
 } from 'lucide-react';
-import Button from '../common/Button';
+import { statusLabel } from '../../services/orderService';
 
 const STEPS = [
   {
-    key: 'Pending',
+    key: 'pending',
     title: 'Order Confirmed',
     description: 'Received by BIIT Food Hub dispatch.',
     icon: ClipboardCheck,
   },
   {
-    key: 'Preparing',
+    key: 'preparing',
     title: 'Kitchen Preparing',
     description: 'Chefs preparing hot fresh meal with halal ingredients.',
     icon: ChefHat,
   },
   {
-    key: 'Out for Delivery',
-    title: 'Rider En Route',
-    description: 'Rider dispatched on bike across Shamsabad / Murree Road.',
-    icon: Bike,
-  },
-  {
-    key: 'Delivered',
+    key: 'delivered',
     title: 'Delivered',
     description: 'Handed over at BIIT campus department or hostel.',
     icon: CheckCircle2,
   },
 ];
 
-const OrderTracker = ({ order, onAdvanceSimulation }) => {
+const OrderTracker = ({ order }) => {
   if (!order) return null;
 
-  const currentStepKey = order.status || 'Pending';
+  const currentStepKey = order.status;
   const currentStepIndex = STEPS.findIndex((s) => s.key === currentStepKey);
   const activeIndex = currentStepIndex !== -1 ? currentStepIndex : 0;
-  const isDelivered = currentStepKey === 'Delivered';
 
   return (
     <div className="bg-[#131A2B] rounded-3xl p-6 sm:p-8 border border-theme-lavender/20 shadow-md space-y-6 text-white">
@@ -55,7 +46,7 @@ const OrderTracker = ({ order, onAdvanceSimulation }) => {
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-theme-lavender/15 text-theme-lavender border border-theme-lavender/30">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              Live Radar
+              Order status
             </span>
           </div>
           <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
@@ -67,28 +58,15 @@ const OrderTracker = ({ order, onAdvanceSimulation }) => {
           </p>
         </div>
 
-        {/* Estimated Delivery Time or Simulation button */}
+        {/* Current status */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="px-3.5 py-2 rounded-xl bg-[#0B0F19] border border-theme-lavender/20 text-theme-lavender flex items-center gap-2 text-xs font-bold">
             <Clock className="w-4 h-4 text-amber-300" />
             <span>
-              {isDelivered ? 'Delivered' : `Estimated ETA: ${order.estimatedDeliveryTime || '15-25 mins'}`}
+              {statusLabel(currentStepKey)}
             </span>
           </div>
 
-          {/* Judges demo button */}
-          {!isDelivered && onAdvanceSimulation && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onAdvanceSimulation(order.id)}
-              className="text-xs font-bold border-theme-lavender/40 text-theme-lavender hover:bg-[#1E2842] gap-1.5 shadow-none"
-              title="Advance step to showcase live transition to judges"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              Simulate Next Step
-            </Button>
-          )}
         </div>
       </div>
 

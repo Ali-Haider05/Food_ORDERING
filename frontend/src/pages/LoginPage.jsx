@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
-import { Mail, Lock, UtensilsCrossed, Sparkles, ShieldCheck, UserCheck } from 'lucide-react';
+import { Mail, Lock, UtensilsCrossed, ShieldCheck } from 'lucide-react';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -50,18 +50,6 @@ const LoginPage = () => {
     }
   };
 
-  const fillDemo = (role) => {
-    if (role === 'customer') {
-      setEmail('customer@foodie.com');
-      setPassword('pass123');
-      setErrors({});
-    } else {
-      setEmail('admin@foodie.com');
-      setPassword('admin123');
-      setErrors({});
-    }
-  };
-
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 bg-theme-canvas">
       <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 rounded-3xl overflow-hidden bg-[#131A2B] border border-theme-lavender/15 text-white shadow-xl">
@@ -93,7 +81,7 @@ const LoginPage = () => {
 
               <div className="flex items-center gap-2 text-xs text-theme-lavender font-medium">
                 <ShieldCheck className="w-4 h-4 text-theme-lavender" />
-                <span>JWT authentication with automatic local NeDB sync</span>
+                <span>Secure account sign-in</span>
               </div>
             </div>
           </div>
@@ -109,33 +97,6 @@ const LoginPage = () => {
               <p className="text-xs text-theme-lavender mt-1 font-normal">
                 Sign in to track orders, manage your cart, and reorder favorites.
               </p>
-            </div>
-
-            {/* University Judges Demo Credentials */}
-            <div className="mb-5 p-3.5 rounded-2xl bg-[#0B0F19] border border-theme-lavender/15">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-theme-lavender mb-2 uppercase tracking-wider">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>1-Click Demo Evaluation Login:</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => fillDemo('customer')}
-                  className="px-2.5 py-1.5 rounded-xl bg-[#131A2B] border border-theme-lavender/25 hover:border-theme-lavender text-white text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                >
-                  <UserCheck className="w-3.5 h-3.5 text-theme-lavender" />
-                  <span>Student Demo</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => fillDemo('admin')}
-                  className="px-2.5 py-1.5 rounded-xl bg-[#131A2B] border border-amber-400/30 hover:border-amber-400 text-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Admin Demo</span>
-                </button>
-              </div>
             </div>
 
             {/* Login Form */}

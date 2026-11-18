@@ -1,12 +1,17 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useToast } from '../context/ToastContext';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 
 const AdminRoute = ({ children }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
   const location = useLocation();
   const { addToast } = useToast();
+  useEffect(() => {
+    if (!loading && isAuthenticated && !isAdmin) {
+      addToast({ title: 'Admin access required', message: 'This page is restricted to administrators.', type: 'warning' });
+    }
+  }, [loading, isAuthenticated, isAdmin, addToast]);
 
   if (loading) {
     return (
@@ -21,11 +26,6 @@ const AdminRoute = ({ children }) => {
   }
 
   if (!isAdmin) {
-    addToast({
-      title: 'Restricted Area',
-      message: 'Admin credentials required to access kitchen management.',
-      type: 'warning',
-    });
     return <Navigate to="/" replace />;
   }
 

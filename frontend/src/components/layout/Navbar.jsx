@@ -23,26 +23,16 @@ import BackendStatusPill from '../common/BackendStatusPill';
 import { formatPrice, RAWALPINDI_LOCATIONS } from '../../utils/format';
 
 const Navbar = () => {
-  const { user, isAuthenticated, isAdmin, login, logout } = useAuth();
+  const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const { totalItems, total, setIsCartOpen } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
-  const [demoDropdownOpen, setDemoDropdownOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('BIIT Campus, Shamsabad');
   const location = useLocation();
   const navigate = useNavigate();
 
   const isActive = (path) => location.pathname === path;
-
-  const handleQuickDemo = (role) => {
-    setDemoDropdownOpen(false);
-    if (role === 'customer') {
-      login('customer@foodie.com', 'pass123');
-    } else {
-      login('admin@foodie.com', 'admin123');
-    }
-  };
 
   return (
     <>
@@ -53,7 +43,7 @@ const Navbar = () => {
           <span className="font-extrabold uppercase tracking-wider text-[10px] sm:text-[11px]">BIIT Campus:</span>
         </span>
         <span className="truncate text-theme-white-muted">
-          Use code <strong className="text-white font-mono font-bold bg-theme-lavender/10 px-1 py-0.5 rounded border border-theme-lavender/20">BIIT20</strong> for 20% off meals!
+          Browse the live menu and track your orders.
         </span>
         <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-theme-lavender bg-theme-lavender/10 border border-theme-lavender/20 px-2 py-0.5 rounded-full shrink-0">
           <Clock className="w-3 h-3 text-amber-300" /> 15-25 min delivery across Rawalpindi
@@ -190,7 +180,7 @@ const Navbar = () => {
               )}
             </nav>
 
-            {/* Right Section: Compact Status, Cart, Demo & Profile */}
+            {/* Right Section: Compact Status, Cart & Profile */}
             <div className="hidden sm:flex items-center gap-2 lg:gap-2.5 shrink-0">
               {/* Backend status pill */}
               <BackendStatusPill compact />
@@ -215,45 +205,6 @@ const Navbar = () => {
                   </span>
                 </div>
               </button>
-
-              {/* Compact Demo Dropdown for Judges (Saves 150px navbar space) */}
-              <div className="relative shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setDemoDropdownOpen(!demoDropdownOpen)}
-                  className="whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#131A2B] border border-theme-lavender/25 text-xs font-bold text-theme-lavender hover:text-white hover:border-theme-lavender transition shadow-sm"
-                  title="Quick Demo Accounts"
-                >
-                  <Sparkles className="w-3 h-3 text-amber-300" />
-                  <span>Demo</span>
-                  <ChevronDown className="w-3 h-3 text-theme-lavender" />
-                </button>
-
-                {demoDropdownOpen && (
-                  <>
-                    <div className="fixed inset-0 z-30" onClick={() => setDemoDropdownOpen(false)} />
-                    <div className="absolute right-0 mt-2 w-48 royal-modal rounded-xl shadow-xl py-1.5 z-40 text-xs text-white">
-                      <p className="px-3 py-1 text-[10px] font-bold text-theme-lavender uppercase tracking-wider border-b border-theme-lavender/10">
-                        1-Click Demo Login
-                      </p>
-                      <button
-                        onClick={() => handleQuickDemo('customer')}
-                        className="w-full text-left px-3 py-2 text-xs font-bold text-white hover:bg-[#1E2842] flex items-center gap-2 transition"
-                      >
-                        <UserCheck className="w-3.5 h-3.5 text-theme-lavender" />
-                        <span>Student Demo</span>
-                      </button>
-                      <button
-                        onClick={() => handleQuickDemo('admin')}
-                        className="w-full text-left px-3 py-2 text-xs font-bold text-amber-300 hover:bg-[#1E2842] flex items-center gap-2 transition"
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Admin Demo</span>
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
 
               {/* Auth Area: Profile OR Login/Signup */}
               {isAuthenticated ? (
@@ -405,32 +356,7 @@ const Navbar = () => {
               <div className="pt-2.5 border-t border-theme-lavender/10 flex flex-col gap-2.5">
                 <BackendStatusPill />
 
-                {/* 1-click Demo buttons for mobile evaluation */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      handleQuickDemo('customer');
-                    }}
-                    className="p-2 rounded-xl bg-[#131A2B] border border-theme-lavender/30 text-xs font-bold text-theme-lavender flex items-center justify-center gap-1"
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    Demo Student
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      handleQuickDemo('admin');
-                    }}
-                    className="p-2 rounded-xl bg-[#131A2B] border border-amber-400/30 text-xs font-bold text-amber-300 flex items-center justify-center gap-1"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    Demo Admin
-                  </button>
-                </div>
 
                 {isAuthenticated ? (
                   <div className="pt-2 flex items-center justify-between">

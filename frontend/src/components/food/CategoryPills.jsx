@@ -18,20 +18,21 @@ const CATEGORY_ICONS = {
   Pasta: Soup,
   Desserts: Cake,
   Beverages: Coffee,
+  Drinks: Coffee,
 };
 
 const CategoryPills = ({ categories, selectedCategory, onSelectCategory, itemCounts = {} }) => {
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none scroll-smooth">
-      {categories.map((category) => {
-        const isSelected = selectedCategory === category;
-        const Icon = CATEGORY_ICONS[category] || Utensils;
-        const count = itemCounts[category];
+      {categories.map(({ id, name }) => {
+        const isSelected = selectedCategory === id;
+        const Icon = CATEGORY_ICONS[name] || Utensils;
+        const count = itemCounts[id];
 
         return (
           <button
-            key={category}
-            onClick={() => onSelectCategory(category)}
+            key={id}
+            onClick={() => onSelectCategory(id)}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all duration-150 active:scale-95 select-none ${
               isSelected
                 ? 'bg-theme-violet text-white border border-theme-lavender/40'
@@ -39,7 +40,7 @@ const CategoryPills = ({ categories, selectedCategory, onSelectCategory, itemCou
             }`}
           >
             <Icon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-theme-lavender'}`} />
-            <span>{category}</span>
+            <span>{name}</span>
             {count !== undefined && (
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-black ${

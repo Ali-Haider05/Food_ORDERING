@@ -1,3 +1,4 @@
+import { statusLabel } from '../../services/orderService';
 import React, { useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { useNavigate } from 'react-router-dom';
@@ -16,21 +17,20 @@ import { formatPrice } from '../../utils/format';
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
 
 const STATUS_BADGE_MAP = {
-  Pending: { variant: 'amber', label: 'Order Received' },
-  Preparing: { variant: 'purple', label: 'Kitchen Preparing' },
-  'Out for Delivery': { variant: 'blue', label: 'Rider Dispatched' },
-  Delivered: { variant: 'green', label: 'Delivered' },
-  Cancelled: { variant: 'rose', label: 'Cancelled' },
+  pending: { variant: 'amber', label: 'Order Received' },
+  preparing: { variant: 'purple', label: 'Kitchen Preparing' },
+  delivered: { variant: 'green', label: 'Delivered' },
+  cancelled: { variant: 'rose', label: 'Cancelled' },
 };
 
-const OrderCard = ({ order, onAdvanceSimulation }) => {
+const OrderCard = ({ order }) => {
   const { addMultipleToCart } = useCart();
   const navigate = useNavigate();
   const [trackerModalOpen, setTrackerModalOpen] = useState(false);
 
   const statusConfig = STATUS_BADGE_MAP[order.status] || {
     variant: 'default',
-    label: order.status,
+    label: statusLabel(order.status),
   };
 
   const handleReorder = () => {
@@ -108,7 +108,7 @@ const OrderCard = ({ order, onAdvanceSimulation }) => {
                 </div>
               </div>
               <span className="font-bold text-white ml-2">
-                {formatPrice(item.price * item.quantity)}
+                {formatPrice(item.subtotal)}
               </span>
             </div>
           ))}
@@ -152,7 +152,6 @@ const OrderCard = ({ order, onAdvanceSimulation }) => {
       >
         <OrderTracker
           order={order}
-          onAdvanceSimulation={onAdvanceSimulation}
         />
       </Modal>
     </>

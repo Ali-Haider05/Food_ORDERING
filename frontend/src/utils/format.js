@@ -2,7 +2,7 @@
 
 export const formatPrice = (amount) => {
   if (amount === undefined || amount === null || isNaN(amount)) return 'Rs. 0';
-  return `Rs. ${Math.round(amount).toLocaleString('en-PK')}`;
+  return `Rs. ${Number(amount).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`;
 };
 
 export const RAWALPINDI_LOCATIONS = [

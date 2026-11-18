@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -10,18 +10,11 @@ import {
   Trash2, 
   Plus, 
   Minus, 
-  Tag, 
   MapPin, 
-  CreditCard, 
-  Banknote, 
-  Smartphone, 
   ArrowLeft, 
-  Sparkles, 
   ShieldCheck, 
-  Clock 
 } from 'lucide-react';
 import Button from '../components/common/Button';
-import Input from '../components/common/Input';
 import EmptyState from '../components/common/EmptyState';
 import { formatPrice } from '../utils/format';
 
@@ -33,49 +26,26 @@ const CartPage = () => {
     updateQuantity, 
     removeFromCart, 
     clearCart, 
-    subtotal, 
-    deliveryFee, 
-    discount, 
-    total,
-    appliedCoupon,
-    applyCoupon,
-    removeCoupon
+    subtotal,
   } = useCart();
-  const { user } = useAuth();
+  const { isAuthenticated, loading: sessionLoading } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
-  const [couponInput, setCouponInput] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState(
-    user?.address || 'Hostel #4, BIIT Campus, Shamsabad, Murree Road, Rawalpindi'
-  );
-  const [contactPhone, setContactPhone] = useState(user?.phone || '+92 301 5551234');
-  const [orderNotes, setOrderNotes] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('Cash on Delivery');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    if (user?.address) {
-      setDeliveryAddress(user.address);
-    }
-    if (user?.phone) {
-      setContactPhone(user.phone);
-    }
-  }, [user]);
-
-  const handleApplyCoupon = (e) => {
-    e.preventDefault();
-    if (!couponInput.trim()) return;
-    const ok = applyCoupon(couponInput);
-    if (ok) setCouponInput('');
-  };
-
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: { pathname: '/cart' } } });
+      return;
+    }
+    if (isSubmitting) return;
 
-    if (!deliveryAddress.trim()) {
-      setErrors({ address: 'Please enter delivery address in Rawalpindi' });
+    if (deliveryAddress.trim().length < 5 || deliveryAddress.trim().length > 500) {
+      setErrors({ address: 'Enter a delivery address of 5 to 500 characters' });
       addToast({
         title: 'Missing Address',
         message: 'Please enter your room/hostel/dept at BIIT or address in Rawalpindi.',
@@ -86,30 +56,7 @@ const CartPage = () => {
 
     setIsSubmitting(true);
     try {
-      const orderData = {
-        userId: user?.id || `guest-${Date.now()}`,
-        userName: user?.name || 'Hamza Abbasi (BIIT Student)',
-        userEmail: user?.email || 'student@biit.edu.pk',
-        userPhone: contactPhone || '+92 301 5551234',
-        deliveryAddress: deliveryAddress.trim(),
-        paymentMethod,
-        notes: orderNotes.trim() || undefined,
-        items: items.map((i) => ({
-          id: i.id,
-          name: i.name,
-          price: i.price,
-          quantity: i.quantity,
-          image: i.image,
-          customization: i.customization,
-        })),
-        subtotal,
-        discount,
-        deliveryFee,
-        tax: 0,
-        total,
-      };
-
-      const placedOrder = await orderService.createOrder(orderData);
+      const placedOrder = await orderService.createOrder({ address: deliveryAddress.trim(), items });
 
       confetti({
         particleCount: 100,
@@ -120,13 +67,13 @@ const CartPage = () => {
 
       addToast({
         title: 'Order Placed Successfully! 🥗',
-        message: `Order #${placedOrder.id} dispatched to the kitchen.`,
+        message: `Order #${placedOrder.id} confirmed. Total: ${formatPrice(placedOrder.total)}.`,
         type: 'success',
         duration: 4000,
       });
 
       clearCart();
-      navigate('/orders', { state: { newOrderId: placedOrder.id } });
+      navigate('/orders', { state: { newOrderId: placedOrder.id, orderTotal: placedOrder.total } });
     } catch (err) {
       addToast({
         title: 'Order Placement Error',
@@ -308,143 +255,12 @@ const CartPage = () => {
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                <div>
-                  <label className="block text-xs font-bold text-theme-lavender uppercase tracking-wider mb-1.5">
-                    Contact Phone (Pakistani Mobile)
-                  </label>
-                  <input
-                    type="text"
-                    value={contactPhone}
-                    onChange={(e) => setContactPhone(e.target.value)}
-                    placeholder="+92 301 5551234"
-                    className="w-full text-xs sm:text-sm p-3 rounded-xl bg-theme-purple-dark border border-theme-lavender/20 text-white placeholder:text-theme-white-muted/60 focus:outline-none focus:ring-1 focus:ring-theme-lavender"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-theme-lavender uppercase tracking-wider mb-1.5">
-                    Rider Instructions (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={orderNotes}
-                    onChange={(e) => setOrderNotes(e.target.value)}
-                    placeholder="e.g. Call upon reaching BIIT Gate #2"
-                    className="w-full text-xs sm:text-sm p-3 rounded-xl bg-theme-purple-dark border border-theme-lavender/20 text-white placeholder:text-theme-white-muted/60 focus:outline-none focus:ring-1 focus:ring-theme-lavender"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Method Selector */}
-          <div className="bg-[#131A2B] rounded-3xl p-5 sm:p-6 border border-theme-lavender/15 shadow-sm space-y-4">
-            <h3 className="font-black text-white text-lg sm:text-xl flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-amber-300" />
-              <span>Payment Method</span>
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {[
-                { id: 'Cash on Delivery', label: 'Cash on Delivery (COD)', desc: 'Pay at hostel or doorstep', icon: Banknote },
-                { id: 'SadaPay / Nayapay', label: 'SadaPay / Nayapay', desc: 'Instant 0% fee transfer', icon: Smartphone },
-                { id: 'JazzCash / Easypaisa', label: 'JazzCash / Easypaisa', desc: 'Mobile wallet transfer', icon: Smartphone },
-              ].map((method) => {
-                const Icon = method.icon;
-                const isSelected = paymentMethod === method.id;
-                return (
-                  <div
-                    key={method.id}
-                    onClick={() => setPaymentMethod(method.id)}
-                    className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col gap-1.5 ${
-                      isSelected
-                        ? 'border-theme-lavender bg-theme-violet/20 text-white font-bold'
-                        : 'border-theme-lavender/15 bg-theme-purple-dark text-theme-white-muted hover:border-theme-lavender/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon className={`w-4 h-4 ${isSelected ? 'text-theme-lavender' : 'text-theme-lavender/60'}`} />
-                      <span className="text-xs font-bold text-white">{method.label}</span>
-                    </div>
-                    <span className="text-[10px] text-theme-white-muted">{method.desc}</span>
-                  </div>
-                );
-              })}
             </div>
           </div>
 
         </div>
 
-        {/* Right Column: Order Summary & Coupon (5 cols) */}
-        <div className="lg:col-span-5 space-y-6 sticky top-28">
-          
-          {/* Coupon Code Section */}
-          <div className="bg-[#131A2B] rounded-3xl p-5 sm:p-6 border border-theme-lavender/15 shadow-sm space-y-3.5">
-            <div className="flex items-center gap-2 text-white font-bold text-sm">
-              <Tag className="w-4 h-4 text-theme-lavender" />
-              <span>Discount Voucher</span>
-            </div>
-
-            {appliedCoupon ? (
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-[#0B0F19] border border-theme-lavender/30 text-xs">
-                <div className="flex items-center gap-2.5">
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <div>
-                    <p className="font-black text-white uppercase">{appliedCoupon.code}</p>
-                    <p className="text-theme-lavender text-[11px] font-medium">{appliedCoupon.description}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={removeCoupon}
-                  className="text-xs font-bold text-rose-400 hover:text-rose-300 px-2 py-1"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleApplyCoupon} className="flex gap-2">
-                <input
-                  type="text"
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value)}
-                  placeholder="BIIT20, FREEDEL, or RAWALPINDI"
-                  className="flex-1 uppercase text-xs font-mono font-bold p-2.5 rounded-xl bg-theme-purple-dark border border-theme-lavender/20 text-white placeholder:text-theme-white-muted/60 focus:outline-none focus:ring-1 focus:ring-theme-lavender"
-                />
-                <Button variant="primary" size="sm" type="submit" className="shrink-0 font-bold shadow-none">
-                  Apply
-                </Button>
-              </form>
-            )}
-
-            <div className="flex flex-wrap gap-2 text-xs text-theme-lavender font-medium">
-              <span className="text-theme-white-muted">Try Coupons: </span>
-              <button
-                type="button"
-                onClick={() => applyCoupon('BIIT20')}
-                className="font-mono text-white font-bold hover:underline"
-              >
-                BIIT20 (20%)
-              </button>
-              <span>•</span>
-              <button
-                type="button"
-                onClick={() => applyCoupon('FREEDEL')}
-                className="font-mono text-white font-bold hover:underline"
-              >
-                FREEDEL
-              </button>
-              <span>•</span>
-              <button
-                type="button"
-                onClick={() => applyCoupon('RAWALPINDI')}
-                className="font-mono text-white font-bold hover:underline"
-              >
-                RAWALPINDI
-              </button>
-            </div>
-          </div>
-
+        <div className="lg:col-span-5 space-y-5">
           {/* Pricing Breakdown Card */}
           <div className="bg-[#131A2B] rounded-3xl p-5 sm:p-6 border border-theme-lavender/15 shadow-sm space-y-4">
             <h3 className="font-black text-white text-lg border-b border-theme-lavender/10 pb-3">
@@ -457,31 +273,13 @@ const CartPage = () => {
                 <span className="font-bold text-white">{formatPrice(subtotal)}</span>
               </div>
 
-              {discount > 0 && (
-                <div className="flex justify-between text-emerald-400 font-bold">
-                  <span>Voucher Discount</span>
-                  <span>-{formatPrice(discount)}</span>
-                </div>
-              )}
-
-              <div className="flex justify-between font-medium">
-                <span>Delivery across Rawalpindi</span>
-                <span>
-                  {deliveryFee === 0 ? (
-                    <span className="text-emerald-400 font-black uppercase text-[11px]">Free Delivery</span>
-                  ) : (
-                    formatPrice(deliveryFee)
-                  )}
-                </span>
-              </div>
-
               <div className="border-t border-theme-lavender/15 pt-3 flex justify-between items-baseline">
                 <div>
-                  <span className="text-sm font-black text-white block">Total Payable</span>
-                  <span className="text-[10px] text-theme-white-muted font-medium">No hidden fees, GST included</span>
+                  <span className="text-sm font-black text-white block">Estimated total</span>
+                  <span className="text-[10px] text-theme-white-muted font-medium">Final total confirmed by the server</span>
                 </div>
                 <span className="text-xl sm:text-2xl font-black text-white">
-                  {formatPrice(total)}
+                  {formatPrice(subtotal)}
                 </span>
               </div>
             </div>
@@ -493,9 +291,10 @@ const CartPage = () => {
                 size="lg"
                 className="w-full font-bold text-sm sm:text-base shadow-none"
                 isLoading={isSubmitting}
+                disabled={sessionLoading}
                 onClick={handlePlaceOrder}
               >
-                Confirm Order • {formatPrice(total)}
+                {isAuthenticated ? 'Confirm Order' : 'Sign in to order'}
               </Button>
 
               <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-theme-lavender text-center font-medium">

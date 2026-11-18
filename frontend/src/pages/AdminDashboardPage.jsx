@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { statusLabel } from '../services/orderService';
 import { statsService } from '../services/statsService';
 import StatCard from '../components/dashboard/StatCard';
 import RevenueChart from '../components/dashboard/RevenueChart';
@@ -21,10 +22,12 @@ import { formatPrice } from '../utils/format';
 const AdminDashboardPage = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const navigate = useNavigate();
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const data = await statsService.getDashboardStats();
       setStats(data);
@@ -41,10 +44,9 @@ const AdminDashboardPage = () => {
 
   const getStatusBadgeVariant = (status) => {
     switch (status) {
-      case 'Pending': return 'amber';
-      case 'Preparing': return 'purple';
-      case 'Out for Delivery': return 'blue';
-      case 'Delivered': return 'green';
+      case 'pending': return 'amber';
+      case 'preparing': return 'purple';
+      case 'delivered': return 'green';
       default: return 'default';
     }
   };
@@ -104,18 +106,18 @@ const AdminDashboardPage = () => {
       </div>
 
       {/* Metrics Row */}
+      {loadError && <p role="alert" className="text-sm text-rose-300">{loadError}</p>}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {Array.from({ length: 4 }).map((_, i) => (
             <StatCardSkeleton key={i} />
           ))}
         </div>
-      ) : (
+      ) : stats && !loadError && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <StatCard
-            title="Total Revenue (PKR)"
-            value={stats?.totalRevenue ? `Rs. ${Math.round(stats.totalRevenue).toLocaleString('en-PK')}` : 'Rs. 0'}
-            trend={14.8}
+            title="Delivered Revenue (PKR)"
+            value={stats?.totalRevenue ? `Rs. ${stats.totalRevenue.toLocaleString('en-PK', { maximumFractionDigits: 2 })}` : 'Rs. 0'}
             icon={TrendingUp}
             colorScheme="purple"
           />
@@ -123,23 +125,21 @@ const AdminDashboardPage = () => {
           <StatCard
             title="Total Campus Orders"
             value={stats?.totalOrders || 0}
-            trend={11.2}
             icon={ShoppingBag}
             colorScheme="purple"
           />
 
           <StatCard
-            title="Orders In Kitchen"
-            value={(stats?.pendingOrders || 0) + (stats?.preparingOrders || 0)}
+            title="Pending Orders"
+            value={stats.pendingOrders}
             trendLabel="active kitchen jobs"
             icon={Clock}
             colorScheme="purple"
           />
 
           <StatCard
-            title="Avg Order Ticket"
-            value={stats?.avgOrderValue ? `Rs. ${Math.round(stats.avgOrderValue).toLocaleString('en-PK')}` : 'Rs. 0'}
-            trend={5.4}
+            title="Total Users"
+            value={stats.totalUsers}
             icon={Utensils}
             colorScheme="purple"
           />
@@ -153,7 +153,7 @@ const AdminDashboardPage = () => {
             <RevenueChart data={stats.revenueByDay} />
           </div>
           <div className="lg:col-span-4">
-            <StatusDonutChart data={stats.categoryDistribution} title="Campus Category Share" />
+            <StatusDonutChart data={stats.categoryDistribution} title={`Menu Categories (${stats.totalMenuItems} items)`} />
           </div>
         </div>
       )}
@@ -164,7 +164,7 @@ const AdminDashboardPage = () => {
           <div>
             <h3 className="font-black text-white text-lg tracking-tight">Recent Campus Orders</h3>
             <p className="text-xs text-theme-lavender mt-0.5 font-normal">
-              Live incoming customer transactions and status updates
+              Latest orders and recorded statuses
             </p>
           </div>
           <Link
@@ -186,7 +186,6 @@ const AdminDashboardPage = () => {
                 <th className="py-2.5 px-3">Dishes</th>
                 <th className="py-2.5 px-3">Total</th>
                 <th className="py-2.5 px-3">Status</th>
-                <th className="py-2.5 px-3">Payment</th>
                 <th className="py-2.5 px-3 text-right">Action</th>
               </tr>
             </thead>
@@ -197,8 +196,7 @@ const AdminDashboardPage = () => {
                     #{order.id}
                   </td>
                   <td className="py-3 px-3">
-                    <p className="font-bold text-white">{order.userName}</p>
-                    <p className="text-[10px] text-theme-lavender font-medium">{order.userEmail}</p>
+                    <p className="font-bold text-white">{order.userId}</p>
                   </td>
                   <td className="py-3 px-3 text-theme-white-muted font-normal max-w-xs truncate">
                     {order.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
@@ -208,11 +206,8 @@ const AdminDashboardPage = () => {
                   </td>
                   <td className="py-3 px-3">
                     <Badge variant={getStatusBadgeVariant(order.status)} dot>
-                      {order.status}
+                      {statusLabel(order.status)}
                     </Badge>
-                  </td>
-                  <td className="py-3 px-3 text-theme-lavender font-medium">
-                    {order.paymentMethod || 'Online'}
                   </td>
                   <td className="py-3 px-3 text-right">
                     <button

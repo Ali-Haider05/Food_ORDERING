@@ -1,27 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { VALID_COUPONS } from '../services/mockData';
+import { menuService } from '../services/menuService';
 import { useToast } from './ToastContext';
 
 const CartContext = createContext(null);
 const CART_STORAGE_KEY = 'biit_foodhub_cart_v2';
-const COUPON_STORAGE_KEY = 'biit_foodhub_active_coupon_v2';
 
 export const CartProvider = ({ children }) => {
   const [items, setItems] = useState(() => {
     try {
       const saved = localStorage.getItem(CART_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
+      const records = saved ? JSON.parse(saved) : [];
+      return Array.isArray(records) ? records.filter((item) =>
+        /^[A-Za-z0-9]{16}$/.test(item?.id) && !item.customization &&
+        Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 99) : [];
     } catch {
       return [];
-    }
-  });
-
-  const [appliedCoupon, setAppliedCoupon] = useState(() => {
-    try {
-      const saved = localStorage.getItem(COUPON_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
     }
   });
 
@@ -31,14 +24,6 @@ export const CartProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
   }, [items]);
-
-  useEffect(() => {
-    if (appliedCoupon) {
-      localStorage.setItem(COUPON_STORAGE_KEY, JSON.stringify(appliedCoupon));
-    } else {
-      localStorage.removeItem(COUPON_STORAGE_KEY);
-    }
-  }, [appliedCoupon]);
 
   const addToCart = (product, quantity = 1, customization = null) => {
     setItems((prevItems) => {
@@ -50,7 +35,7 @@ export const CartProvider = ({ children }) => {
         const next = [...prevItems];
         next[existingIndex] = {
           ...next[existingIndex],
-          quantity: next[existingIndex].quantity + quantity,
+          quantity: Math.min(99, next[existingIndex].quantity + quantity),
         };
         return next;
       } else {
@@ -91,7 +76,7 @@ export const CartProvider = ({ children }) => {
         .map((item) => {
           if (item.id === itemId && JSON.stringify(item.customization) === JSON.stringify(customization)) {
             const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
+            return newQty > 0 ? { ...item, quantity: Math.min(99, newQty) } : null;
           }
           return item;
         })
@@ -101,34 +86,22 @@ export const CartProvider = ({ children }) => {
 
   const clearCart = () => {
     setItems([]);
-    setAppliedCoupon(null);
   };
 
-  const addMultipleToCart = (orderItems) => {
-    setItems((prev) => {
-      const next = [...prev];
-      orderItems.forEach((orderItem) => {
-        const existingIdx = next.findIndex((i) => i.id === orderItem.id);
-        if (existingIdx > -1) {
-          next[existingIdx].quantity += orderItem.quantity;
-        } else {
-          next.push({
-            id: orderItem.id,
-            name: orderItem.name,
-            price: Number(orderItem.price),
-            image: orderItem.image,
-            quantity: orderItem.quantity,
-          });
-        }
-      });
-      return next;
-    });
-
-    addToast({
-      title: 'Order Re-added!',
-      message: `${orderItems.length} items loaded into your cart.`,
-      type: 'success',
-    });
+  const addMultipleToCart = async (orderItems) => {
+    const results = await Promise.allSettled(orderItems.map(async (line) => ({
+      item: await menuService.getById(line.id), quantity: line.quantity,
+    })));
+    let added = 0;
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value.item.isAvailable) {
+        addToCart(result.value.item, result.value.quantity);
+        added += 1;
+      }
+    }
+    if (added !== orderItems.length) {
+      addToast({ title: 'Some items could not be reordered', message: 'Check the live menu for availability.', type: 'warning' });
+    }
   };
 
   // Calculations
@@ -136,67 +109,7 @@ export const CartProvider = ({ children }) => {
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // Delivery fee: Rs. 100 base across Rawalpindi, free over Rs. 1,500 or with coupon
-  let deliveryFee = subtotal >= 1500 || subtotal === 0 ? 0 : 100;
-  if (appliedCoupon?.freeDelivery && subtotal > 0) {
-    deliveryFee = 0;
-  }
-
-  // Discount calculation
-  let discount = 0;
-  if (appliedCoupon && subtotal > 0) {
-    if (appliedCoupon.discountPercent) {
-      discount = Math.round((subtotal * appliedCoupon.discountPercent) / 100);
-    } else if (appliedCoupon.discountAmount) {
-      discount = Math.min(subtotal, appliedCoupon.discountAmount);
-    }
-  }
-
-  // No arbitrary tax for campus students, clean round total in PKR
-  const taxableAmount = Math.max(0, subtotal - discount);
-  const tax = 0;
-
-  const total = Math.max(0, taxableAmount + deliveryFee);
-
-  const applyCoupon = (code) => {
-    const cleanCode = code?.trim().toUpperCase();
-    const found = VALID_COUPONS[cleanCode];
-
-    if (!found) {
-      addToast({
-        title: 'Invalid Coupon',
-        message: 'Coupon code not recognized. Try BIIT20, FREEDEL, or RAWALPINDI',
-        type: 'error',
-      });
-      return false;
-    }
-
-    if (found.minOrder && subtotal < found.minOrder) {
-      addToast({
-        title: 'Minimum Order Not Met',
-        message: `This coupon requires a minimum subtotal of Rs. ${found.minOrder}.`,
-        type: 'warning',
-      });
-      return false;
-    }
-
-    setAppliedCoupon(found);
-    addToast({
-      title: 'Coupon Applied! 🎉',
-      message: `${found.description} has been applied to your order!`,
-      type: 'success',
-    });
-    return true;
-  };
-
-  const removeCoupon = () => {
-    setAppliedCoupon(null);
-    addToast({
-      title: 'Coupon Removed',
-      message: 'Discount has been removed.',
-      type: 'info',
-    });
-  };
+  const total = subtotal;
 
   return (
     <CartContext.Provider
@@ -209,13 +122,7 @@ export const CartProvider = ({ children }) => {
         addMultipleToCart,
         totalItems,
         subtotal: Number(subtotal.toFixed(2)),
-        deliveryFee: Number(deliveryFee.toFixed(2)),
-        discount: Number(discount.toFixed(2)),
-        tax: Number(tax.toFixed(2)),
         total: Number(total.toFixed(2)),
-        appliedCoupon,
-        applyCoupon,
-        removeCoupon,
         isCartOpen,
         setIsCartOpen,
       }}

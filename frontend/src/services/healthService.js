@@ -12,8 +12,8 @@ export const checkBackendHealth = async () => {
   } catch (error) {
     return {
       online: false,
-      message: 'Backend server not detected (Local reactive engine active)',
-      database: 'Client Storage',
+      message: 'The backend is unavailable',
+      database: null,
       error: error.message,
     };
   }

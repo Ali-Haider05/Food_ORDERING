@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { orderService } from '../services/orderService';
+import { orderService, nextStatuses, statusLabel } from '../services/orderService';
 import { useToast } from '../context/ToastContext';
 import { 
   Search, 
@@ -17,11 +17,13 @@ import { formatPrice } from '../utils/format';
 
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
 
-const ORDER_STATUSES = ['Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'];
+const ORDER_STATUSES = ['pending', 'preparing', 'delivered', 'cancelled'];
 
 const AdminOrdersPage = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [updating, setUpdating] = useState(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -29,11 +31,12 @@ const AdminOrdersPage = () => {
 
   const loadOrders = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const data = await orderService.getAllOrders();
       setOrders(data);
     } catch (err) {
-      console.error(err);
+      setLoadError(err.message);
     } finally {
       setLoading(false);
     }
@@ -44,13 +47,15 @@ const AdminOrdersPage = () => {
   }, []);
 
   const handleStatusChange = async (orderId, newStatus) => {
+    if (updating) return;
+    setUpdating(orderId);
     try {
-      await orderService.updateStatus(orderId, newStatus);
+      const updated = await orderService.updateStatus(orderId, newStatus);
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+        prev.map((o) => (o.id === orderId ? updated : o))
       );
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder((prev) => ({ ...prev, status: newStatus }));
+        setSelectedOrder((prev) => prev?.id === orderId ? updated : prev);
       }
       addToast({
         title: 'Status Updated',
@@ -63,16 +68,21 @@ const AdminOrdersPage = () => {
         message: err.message || 'Could not update order status',
         type: 'error',
       });
+      if (err.response?.status === 409) {
+        setSelectedOrder(null);
+        await loadOrders();
+      }
+    } finally {
+      setUpdating(null);
     }
   };
 
   const getStatusBadgeVariant = (status) => {
     switch (status) {
-      case 'Pending': return 'amber';
-      case 'Preparing': return 'purple';
-      case 'Out for Delivery': return 'blue';
-      case 'Delivered': return 'green';
-      case 'Cancelled': return 'rose';
+      case 'pending': return 'amber';
+      case 'preparing': return 'purple';
+      case 'delivered': return 'green';
+      case 'cancelled': return 'rose';
       default: return 'default';
     }
   };
@@ -82,8 +92,7 @@ const AdminOrdersPage = () => {
     const matchesSearch =
       !search.trim() ||
       order.id.toLowerCase().includes(search.toLowerCase()) ||
-      order.userName?.toLowerCase().includes(search.toLowerCase()) ||
-      order.userEmail?.toLowerCase().includes(search.toLowerCase()) ||
+      order.userId.toLowerCase().includes(search.toLowerCase()) ||
       order.deliveryAddress?.toLowerCase().includes(search.toLowerCase());
     return matchesStatus && matchesSearch;
   });
@@ -128,7 +137,7 @@ const AdminOrdersPage = () => {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by order #, customer, address..."
+            placeholder="Search by order ID, customer ID, or address"
             className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold rounded-xl bg-theme-purple-dark border border-theme-lavender/20 text-theme-white placeholder:text-theme-lavender/50 focus:outline-none focus:ring-2 focus:ring-theme-violet"
           />
         </div>
@@ -144,7 +153,7 @@ const AdminOrdersPage = () => {
                   : 'bg-theme-purple-dark text-theme-lavender hover:text-white border border-theme-lavender/15'
               }`}
             >
-              {st} ({
+              {statusLabel(st)} ({
                 st === 'All'
                   ? orders.length
                   : orders.filter((o) => o.status === st).length
@@ -154,6 +163,8 @@ const AdminOrdersPage = () => {
         </div>
       </div>
 
+      {loadError && <p role="alert" className="text-sm text-rose-300">{loadError}</p>}
+
       {/* Orders Table */}
       <div className="bg-theme-purple rounded-3xl border border-theme-lavender/20 shadow-purple-card overflow-hidden">
         <div className="overflow-x-auto">
@@ -161,10 +172,10 @@ const AdminOrdersPage = () => {
             <thead>
               <tr className="bg-theme-purple-dark border-b border-theme-lavender/15 text-theme-lavender uppercase tracking-widest text-[11px] font-black">
                 <th className="py-4 px-4">Order ID & Date</th>
-                <th className="py-4 px-4">Customer Details</th>
+                <th className="py-4 px-4">Customer ID</th>
                 <th className="py-4 px-4">Order Items</th>
                 <th className="py-4 px-4">Delivery Address</th>
-                <th className="py-4 px-4">Total & Payment</th>
+                <th className="py-4 px-4">Total</th>
                 <th className="py-4 px-4">Current Status</th>
                 <th className="py-4 px-4 text-right">View</th>
               </tr>
@@ -191,11 +202,7 @@ const AdminOrdersPage = () => {
                     </td>
 
                     <td className="py-4 px-4">
-                      <p className="font-black text-theme-white">{order.userName}</p>
-                      <p className="text-[11px] text-theme-lavender font-medium">{order.userEmail}</p>
-                      {order.userPhone && (
-                        <p className="text-[11px] text-theme-lavender font-medium">{order.userPhone}</p>
-                      )}
+                      <p className="font-black text-theme-white">{order.userId}</p>
                     </td>
 
                     <td className="py-4 px-4 text-theme-white-muted font-medium max-w-xs">
@@ -215,28 +222,26 @@ const AdminOrdersPage = () => {
                       <p className="font-bold text-white text-sm">
                         {formatPrice(order.total)}
                       </p>
-                      <p className="text-[11px] text-theme-lavender font-medium">{order.paymentMethod || 'Cash on Delivery'}</p>
                     </td>
 
                     <td className="py-4 px-4">
                       <select
                         value={order.status}
+                        disabled={Boolean(updating) || !nextStatuses(order.status).length}
                         onChange={(e) => handleStatusChange(order.id, e.target.value)}
                         className={`text-xs font-black rounded-xl px-3 py-1.5 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-theme-violet ${
-                          order.status === 'Pending'
+                          order.status === 'pending'
                             ? 'bg-amber-950/70 text-amber-300 border-amber-500/40'
-                            : order.status === 'Preparing'
+                            : order.status === 'preparing'
                             ? 'bg-theme-purple-dark text-theme-lavender border-theme-lavender/40'
-                            : order.status === 'Out for Delivery'
-                            ? 'bg-sky-950/70 text-sky-300 border-sky-500/40'
-                            : order.status === 'Delivered'
+                            : order.status === 'delivered'
                             ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40'
                             : 'bg-rose-950/70 text-rose-300 border-rose-500/40'
                         }`}
                       >
-                        {ORDER_STATUSES.map((st) => (
+                        {[order.status, ...nextStatuses(order.status)].map((st) => (
                           <option key={st} value={st} className="bg-theme-purple text-white">
-                            {st}
+                            {statusLabel(st)}
                           </option>
                         ))}
                       </select>
@@ -272,11 +277,10 @@ const AdminOrdersPage = () => {
             {/* Customer & Status Bar */}
             <div className="flex items-center justify-between p-4 rounded-2xl bg-theme-purple-dark border border-theme-lavender/20">
               <div>
-                <p className="font-black text-theme-white text-base">{selectedOrder.userName}</p>
-                <p className="text-theme-lavender font-medium mt-0.5">{selectedOrder.userEmail} • {selectedOrder.userPhone}</p>
+                <p className="font-black text-theme-white text-base">{selectedOrder.userId}</p>
               </div>
               <Badge variant={getStatusBadgeVariant(selectedOrder.status)} dot size="lg">
-                {selectedOrder.status}
+                {statusLabel(selectedOrder.status)}
               </Badge>
             </div>
 
@@ -321,7 +325,7 @@ const AdminOrdersPage = () => {
                       </div>
                     </div>
                     <span className="font-bold text-white">
-                      {formatPrice(item.price * item.quantity)}
+                      {formatPrice(item.subtotal)}
                     </span>
                   </div>
                 ))}
@@ -334,16 +338,6 @@ const AdminOrdersPage = () => {
                 <span>Subtotal</span>
                 <span className="font-bold text-white">{formatPrice(selectedOrder.subtotal)}</span>
               </div>
-              {selectedOrder.discount > 0 && (
-                <div className="flex justify-between text-emerald-400 font-bold">
-                  <span>Discount</span>
-                  <span>-{formatPrice(selectedOrder.discount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-medium">
-                <span>Delivery across Rawalpindi</span>
-                <span className="font-bold text-white">{formatPrice(selectedOrder.deliveryFee)}</span>
-              </div>
               <div className="border-t border-theme-lavender/15 pt-2 flex justify-between text-sm font-black text-white">
                 <span>Total Amount</span>
                 <span className="text-white text-base font-black">
@@ -353,20 +347,21 @@ const AdminOrdersPage = () => {
             </div>
 
             {/* Change Status Inside Modal */}
-            <div className="pt-2 flex items-center justify-between border-t border-theme-lavender/10">
+            {nextStatuses(selectedOrder.status).length > 0 && <div className="pt-2 flex items-center justify-between border-t border-theme-lavender/10">
               <span className="font-black text-theme-white">Quick Status Transition:</span>
               <div className="flex gap-2">
-                {['Preparing', 'Out for Delivery', 'Delivered'].map((st) => (
+                {nextStatuses(selectedOrder.status).map((st) => (
                   <button
                     key={st}
                     onClick={() => handleStatusChange(selectedOrder.id, st)}
+                  disabled={Boolean(updating)}
                     className="px-3 py-1.5 rounded-xl text-xs font-bold bg-theme-purple hover:bg-theme-violet hover:text-white border border-theme-lavender/20 transition"
                   >
-                    Set {st}
+                    Set {statusLabel(st)}
                   </button>
                 ))}
               </div>
-            </div>
+            </div>}
           </div>
         </Modal>
       )}

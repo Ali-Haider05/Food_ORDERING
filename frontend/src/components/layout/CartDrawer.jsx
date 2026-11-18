@@ -15,9 +15,7 @@ const CartDrawer = () => {
     updateQuantity, 
     removeFromCart, 
     subtotal, 
-    deliveryFee, 
     total,
-    appliedCoupon 
   } = useCart();
   const navigate = useNavigate();
 
@@ -148,25 +146,6 @@ const CartDrawer = () => {
                   <span>Subtotal</span>
                   <span className="font-bold text-white">{formatPrice(subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-theme-white-muted font-medium">
-                  <span>Delivery across Rawalpindi</span>
-                  <span>
-                    {deliveryFee === 0 ? (
-                      <span className="text-emerald-400 font-extrabold uppercase text-[10px] tracking-wider">Free (Over Rs. 1,500)</span>
-                    ) : (
-                      formatPrice(deliveryFee)
-                    )}
-                  </span>
-                </div>
-                {appliedCoupon && (
-                  <div className="flex justify-between text-theme-lavender font-bold">
-                    <span className="flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                      Coupon ({appliedCoupon.code})
-                    </span>
-                    <span>Applied</span>
-                  </div>
-                )}
                 <div className="border-t border-theme-lavender/15 pt-2 flex justify-between text-sm font-black text-white">
                   <span>Total Amount</span>
                   <span className="text-lg font-black text-white">

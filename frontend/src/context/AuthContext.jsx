@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { SESSION_EXPIRED } from '../services/api';
 import { authService } from '../services/authService';
 import { useToast } from './ToastContext';
 
@@ -10,15 +11,35 @@ export const AuthProvider = ({ children }) => {
   const { addToast } = useToast();
 
   useEffect(() => {
-    // Check local storage on startup
-    const storedUser = authService.getCurrentUser();
-    const token = authService.getToken();
-
-    if (storedUser && token) {
-      setUser(storedUser);
+    let active = true;
+    const expire = () => {
+      setUser(null);
+      addToast({ title: 'Session expired', message: 'Sign in again to continue.', type: 'info' });
+    };
+    window.addEventListener(SESSION_EXPIRED, expire);
+    for (const key of ['biit_foodhub_users_store_v2', 'biit_foodhub_user', 'gourmet_token']) {
+      localStorage.removeItem(key);
     }
-    setLoading(false);
-  }, []);
+
+    const token = authService.getToken();
+    if (token) {
+      authService.getCurrentUser().then((current) => {
+        if (active && authService.getToken() === token) setUser(current);
+      }).catch((error) => {
+        if (active && error.response?.status !== 401) {
+          addToast({ title: 'Session unavailable', message: error.message, type: 'error' });
+        }
+      }).finally(() => {
+        if (active) setLoading(false);
+      });
+    } else {
+      setLoading(false);
+    }
+    return () => {
+      active = false;
+      window.removeEventListener(SESSION_EXPIRED, expire);
+    };
+  }, [addToast]);
 
   const login = async (email, password) => {
     try {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { menuService } from '../services/menuService';
-import { CATEGORIES } from '../services/mockData';
+import { categoryService, menuService } from '../services/menuService';
+import { useToast } from '../context/ToastContext';
 import FoodCard from '../components/food/FoodCard';
 import FoodQuickViewModal from '../components/food/FoodQuickViewModal';
 import CategoryPills from '../components/food/CategoryPills';
@@ -13,76 +13,71 @@ import {
   ShieldCheck, 
   Leaf, 
   Flame, 
-  ChevronDown,
-  Award
+  ChevronDown
 } from 'lucide-react';
 import Button from '../components/common/Button';
-import { formatPrice } from '../utils/format';
 
 const HomePage = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isVegOnly, setIsVegOnly] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const { addToast } = useToast();
   const [sortBy, setSortBy] = useState('recommended');
   const [quickViewDish, setQuickViewDish] = useState(null);
 
   useEffect(() => {
-    const fetchMenu = async () => {
-      setLoading(true);
-      try {
-        const items = await menuService.getAll();
-        setMenuItems(items);
-      } catch (err) {
-        console.error('Error loading menu:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchMenu();
-  }, []);
-
-  const itemCounts = useMemo(() => {
-    const counts = { All: menuItems.length };
-    menuItems.forEach((item) => {
-      counts[item.category] = (counts[item.category] || 0) + 1;
+    let active = true;
+    categoryService.list().then((result) => {
+      if (active) setCategories(result);
+    }).catch((failure) => {
+      if (active) addToast({ title: 'Categories unavailable', message: failure.message, type: 'error' });
     });
-    return counts;
-  }, [menuItems]);
+    return () => { active = false; };
+  }, [retry, addToast]);
 
-  const filteredItems = useMemo(() => {
-    let result = [...menuItems];
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    setPage(1);
+    const timer = setTimeout(async () => {
+      try {
+        const items = await menuService.getAll({
+          search: searchQuery.trim() || undefined,
+          category: selectedCategory === 'All' ? undefined : selectedCategory,
+        });
+        if (active) setMenuItems(items);
+      } catch (failure) {
+        if (active) setError(failure.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [searchQuery, selectedCategory, retry]);
 
-    if (selectedCategory !== 'All') {
-      result = result.filter((item) => item.category === selectedCategory);
+  const sortedItems = useMemo(() => {
+    if (sortBy === 'price-low') return [...menuItems].sort((a, b) => a.price - b.price);
+    if (sortBy === 'price-high') return [...menuItems].sort((a, b) => b.price - a.price);
+    return menuItems;
+  }, [menuItems, sortBy]);
+  const totalPages = Math.ceil(sortedItems.length / 10);
+  const filteredItems = sortedItems.slice((page - 1) * 10, page * 10);
+  const categoryName = (id) => categories.find((category) => category.id === id)?.name || 'Menu';
+
+  const openDetails = async (item) => {
+    try {
+      const detail = await menuService.getById(item.id);
+      setQuickViewDish({ ...detail, category: categoryName(detail.category) });
+    } catch (failure) {
+      addToast({ title: 'Dish unavailable', message: failure.message, type: 'error' });
     }
-
-    if (isVegOnly) {
-      result = result.filter((item) => item.isVeg === true);
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (item) =>
-          item.name.toLowerCase().includes(q) ||
-          item.description.toLowerCase().includes(q) ||
-          item.category.toLowerCase().includes(q) ||
-          (item.tag && item.tag.toLowerCase().includes(q))
-      );
-    }
-
-    if (sortBy === 'price-low') {
-      result.sort((a, b) => a.price - b.price);
-    } else if (sortBy === 'price-high') {
-      result.sort((a, b) => b.price - a.price);
-    } else if (sortBy === 'rating') {
-      result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    }
-
-    return result;
-  }, [menuItems, selectedCategory, isVegOnly, searchQuery, sortBy]);
+  };
 
   return (
     <div className="min-h-screen pb-20 text-white bg-theme-canvas overflow-x-hidden">
@@ -176,21 +171,12 @@ const HomePage = () => {
                     className="w-full h-full object-cover"
                   />
                   
-                  {/* Subtle top-right coupon badge safely inside card */}
-                  <div className="absolute top-3 right-3 bg-[#0B0F19]/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-theme-lavender/30 flex items-center gap-2">
-                    <Award className="w-4 h-4 text-amber-300" />
-                    <div>
-                      <p className="text-[11px] font-bold text-white">COUPON: BIIT20</p>
-                      <p className="text-[9px] text-theme-lavender">20% Off for Students</p>
-                    </div>
-                  </div>
-
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F19] via-[#0B0F19]/30 to-transparent flex flex-col justify-end p-4 text-white">
                     <span className="text-[10px] uppercase font-bold tracking-widest text-theme-lavender">
-                      Chef's Special
+                      BIIT Food Hub
                     </span>
-                    <h3 className="text-lg font-black tracking-tight">Truffle Beef & Zinger Feast</h3>
-                    <p className="text-xs text-theme-white-muted font-medium">Campus Meals starting from {formatPrice(180)}</p>
+                    <h3 className="text-lg font-black tracking-tight">Explore the Campus Menu</h3>
+                    <p className="text-xs text-theme-white-muted font-medium">Browse current dishes and prices</p>
                   </div>
                 </div>
               </div>
@@ -219,19 +205,6 @@ const HomePage = () => {
 
           {/* Controls: Veg Toggle & Sort By */}
           <div className="flex flex-wrap items-center gap-3">
-            {/* Veg toggle */}
-            <button
-              onClick={() => setIsVegOnly(!isVegOnly)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
-                isVegOnly
-                  ? 'bg-theme-violet text-white border-theme-lavender'
-                  : 'bg-[#131A2B] text-white border-theme-lavender/20 hover:border-theme-lavender/40'
-              }`}
-            >
-              <Leaf className="w-4 h-4" />
-              <span>Veg Only</span>
-            </button>
-
             {/* Sort Dropdown */}
             <div className="relative">
               <select
@@ -242,7 +215,6 @@ const HomePage = () => {
                 <option value="recommended" className="bg-[#131A2B] text-white">Sort: Recommended</option>
                 <option value="price-low" className="bg-[#131A2B] text-white">Price: Low to High</option>
                 <option value="price-high" className="bg-[#131A2B] text-white">Price: High to Low</option>
-                <option value="rating" className="bg-[#131A2B] text-white">Highest Rated</option>
               </select>
               <ChevronDown className="w-4 h-4 text-theme-lavender absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -252,10 +224,9 @@ const HomePage = () => {
         {/* Category Pills Bar */}
         <div className="mb-8">
           <CategoryPills
-            categories={CATEGORIES}
+            categories={[{ id: 'All', name: 'All' }, ...categories]}
             selectedCategory={selectedCategory}
             onSelectCategory={setSelectedCategory}
-            itemCounts={itemCounts}
           />
         </div>
 
@@ -266,6 +237,8 @@ const HomePage = () => {
               <FoodCardSkeleton key={i} />
             ))}
           </div>
+        ) : error ? (
+          <EmptyState title="Menu unavailable" description={error} actionLabel="Retry" onAction={() => setRetry((value) => value + 1)} />
         ) : filteredItems.length === 0 ? (
           <EmptyState
             title="No dishes found"
@@ -274,7 +247,6 @@ const HomePage = () => {
             onAction={() => {
               setSelectedCategory('All');
               setSearchQuery('');
-              setIsVegOnly(false);
             }}
           />
         ) : (
@@ -282,17 +254,25 @@ const HomePage = () => {
             {filteredItems.map((dish) => (
               <FoodCard
                 key={dish.id}
-                dish={dish}
-                onQuickView={setQuickViewDish}
+                dish={{ ...dish, category: categoryName(dish.category) }}
+                onQuickView={openDetails}
               />
             ))}
           </div>
         )}
 
+        {!loading && !error && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-4 mt-6 text-sm">
+            <Button variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button>
+            <span>Page {page} of {totalPages}</span>
+            <Button variant="outline" disabled={page === totalPages} onClick={() => setPage(page + 1)}>Next</Button>
+          </div>
+        )}
       </section>
 
       {/* Quick View Customization Modal */}
       <FoodQuickViewModal
+        key={quickViewDish?.id}
         dish={quickViewDish}
         isOpen={Boolean(quickViewDish)}
         onClose={() => setQuickViewDish(null)}

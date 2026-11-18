@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { menuService } from '../services/menuService';
-import { CATEGORIES } from '../services/mockData';
+import { categoryService, menuService } from '../services/menuService';
 import { useToast } from '../context/ToastContext';
 import { 
   Plus, 
   Edit3, 
   Trash2, 
   Search, 
-  RotateCcw, 
   AlertTriangle,
   ArrowLeft
 } from 'lucide-react';
@@ -23,6 +21,12 @@ const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d8
 
 const AdminMenuPage = () => {
   const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const [manageCategories, setManageCategories] = useState(false);
+  const [categoryId, setCategoryId] = useState('');
+  const [categoryName, setCategoryName] = useState('');
+  const [categoryBusy, setCategoryBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -35,14 +39,10 @@ const AdminMenuPage = () => {
 
   const initialFormState = {
     name: '',
-    category: 'Burgers',
+    category: '',
     price: '',
     description: '',
     image: '',
-    prepTime: '15-20 min',
-    calories: '650 kcal',
-    tag: 'Popular',
-    isVeg: false,
     isAvailable: true,
   };
   const [formData, setFormData] = useState(initialFormState);
@@ -51,11 +51,13 @@ const AdminMenuPage = () => {
 
   const loadMenu = async () => {
     setLoading(true);
+    setLoadError('');
     try {
-      const data = await menuService.getAll();
-      setItems(data);
+      const [menu, groups] = await Promise.all([menuService.getAll(), categoryService.list()]);
+      setItems(menu);
+      setCategories(groups);
     } catch (err) {
-      console.error(err);
+      setLoadError(err.message);
     } finally {
       setLoading(false);
     }
@@ -67,7 +69,7 @@ const AdminMenuPage = () => {
 
   const handleOpenAdd = () => {
     setEditingItem(null);
-    setFormData(initialFormState);
+    setFormData({ ...initialFormState, category: categories[0]?.id || '' });
     setFormErrors({});
     setIsAddEditModalOpen(true);
   };
@@ -80,10 +82,6 @@ const AdminMenuPage = () => {
       price: String(item.price),
       description: item.description,
       image: item.image,
-      prepTime: item.prepTime || '15-20 min',
-      calories: item.calories || '600 kcal',
-      tag: item.tag || '',
-      isVeg: Boolean(item.isVeg),
       isAvailable: item.isAvailable ?? true,
     });
     setFormErrors({});
@@ -99,7 +97,7 @@ const AdminMenuPage = () => {
     const errs = {};
     if (!formData.name.trim()) errs.name = 'Dish name is required';
     if (!formData.category) errs.category = 'Category is required';
-    if (!formData.price || isNaN(Number(formData.price)) || Number(formData.price) <= 0) {
+    if (!formData.price || !Number.isFinite(Number(formData.price)) || Number(formData.price) <= 0) {
       errs.price = 'Please enter a valid price (greater than 0)';
     }
     if (!formData.description.trim()) errs.description = 'Description is required';
@@ -172,6 +170,7 @@ const AdminMenuPage = () => {
   const handleToggleAvailability = async (item) => {
     try {
       const updated = await menuService.update(item.id, {
+        ...item,
         isAvailable: !item.isAvailable,
       });
       setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
@@ -182,18 +181,43 @@ const AdminMenuPage = () => {
         duration: 2000,
       });
     } catch (err) {
-      console.error(err);
+      addToast({ title: 'Update failed', message: err.message, type: 'error' });
     }
   };
 
-  const handleResetDefaults = () => {
-    const defaults = menuService.resetDefaults();
-    setItems(defaults);
-    addToast({
-      title: 'Menu Reset',
-      message: 'All default culinary items restored.',
-      type: 'success',
-    });
+  const saveCategory = async (event) => {
+    event.preventDefault();
+    if (categoryBusy || !categoryName.trim()) return;
+    setCategoryBusy(true);
+    try {
+      const saved = await categoryService.save(categoryName.trim(), categoryId);
+      setCategories((current) => categoryId ?
+        current.map((category) => category.id === categoryId ? saved : category) : [...current, saved]);
+      setCategoryId('');
+      setCategoryName('');
+    } catch (error) {
+      addToast({ title: 'Category could not be saved', message: error.message, type: 'error' });
+    } finally {
+      setCategoryBusy(false);
+    }
+  };
+
+  const removeCategory = async (category) => {
+    if (categoryBusy || !window.confirm('Delete category "' + category.name + '"?')) return;
+    setCategoryBusy(true);
+    try {
+      await categoryService.delete(category.id);
+      setCategories((current) => current.filter(({ id }) => id !== category.id));
+      if (selectedCategory === cat.idegory.id) setSelectedCategory('All');
+      if (categoryId === category.id) {
+        setCategoryId('');
+        setCategoryName('');
+      }
+    } catch (error) {
+      addToast({ title: 'Category could not be deleted', message: error.message, type: 'error' });
+    } finally {
+      setCategoryBusy(false);
+    }
   };
 
   const filteredItems = items.filter((item) => {
@@ -230,18 +254,17 @@ const AdminMenuPage = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleResetDefaults}
+            onClick={() => setManageCategories(true)}
             className="text-xs font-bold gap-1.5 border-theme-lavender/30"
-            title="Restore original seed menu items"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset Defaults
+            Manage Categories
           </Button>
 
           <Button
             variant="primary"
             size="sm"
             onClick={handleOpenAdd}
+            disabled={loading || !categories.length}
             className="text-xs font-black gap-1.5 shadow-violet-glow"
           >
             <Plus className="w-4 h-4" />
@@ -264,21 +287,27 @@ const AdminMenuPage = () => {
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
-          {CATEGORIES.map((cat) => (
+          {[{ id: 'All', name: 'All' }, ...categories].map((cat) => (
             <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
               className={`px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap transition ${
-                selectedCategory === cat
+                selectedCategory === cat.id
                   ? 'bg-theme-violet text-white shadow-violet-glow'
                   : 'bg-theme-purple-dark text-theme-lavender hover:text-white border border-theme-lavender/15'
               }`}
             >
-              {cat}
+              {cat.name}
             </button>
           ))}
         </div>
       </div>
+
+      {loadError && (
+        <div role="alert" className="flex items-center gap-3 text-sm text-rose-300">
+          {loadError} <Button variant="outline" size="sm" onClick={loadMenu}>Retry</Button>
+        </div>
+      )}
 
       {/* Menu Items Table */}
       <div className="bg-theme-purple rounded-3xl border border-theme-lavender/20 shadow-purple-card overflow-hidden">
@@ -332,7 +361,7 @@ const AdminMenuPage = () => {
                     </td>
 
                     <td className="py-4 px-4 font-bold text-white">
-                      {item.category}
+                      {categories.find(({ id }) => id === item.category)?.name || 'Unknown category'}
                     </td>
 
                     <td className="py-4 px-4 font-black text-white text-sm">
@@ -351,9 +380,7 @@ const AdminMenuPage = () => {
 
                     <td className="py-4 px-4 text-theme-white">
                       <div className="space-y-0.5 font-semibold">
-                        <span className="block text-[11px]">{item.prepTime || '15 min'}</span>
-                        <span className="block text-[10px] text-amber-300 font-bold">{item.calories}</span>
-                      </div>
+                                              </div>
                     </td>
 
                     <td className="py-4 px-4">
@@ -395,6 +422,25 @@ const AdminMenuPage = () => {
         </div>
       </div>
 
+      <Modal isOpen={manageCategories} onClose={() => setManageCategories(false)} title="Manage Categories">
+        <form onSubmit={saveCategory} className="flex items-end gap-3 mb-5">
+          <Input label="Category name" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} required />
+          <Button type="submit" isLoading={categoryBusy}>{categoryId ? 'Save' : 'Add'}</Button>
+          {categoryId && <Button type="button" variant="outline" onClick={() => { setCategoryId(''); setCategoryName(''); }}>Cancel</Button>}
+        </form>
+        <ul className="space-y-2">
+          {categories.map((category) => (
+            <li key={category.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-theme-lavender/15 py-2">
+              <span>{category.name}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={categoryBusy} onClick={() => { setCategoryId(category.id); setCategoryName(category.name); }}>Rename</Button>
+                <Button variant="outline" size="sm" disabled={categoryBusy} onClick={() => removeCategory(category)}>Delete</Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Modal>
+
       {/* Add / Edit Dish Modal */}
       <Modal
         isOpen={isAddEditModalOpen}
@@ -422,9 +468,9 @@ const AdminMenuPage = () => {
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full bg-theme-purple-dark border border-theme-lavender/20 rounded-2xl py-3 px-3 text-xs text-theme-white font-bold focus:outline-none focus:ring-2 focus:ring-theme-violet"
               >
-                {CATEGORIES.filter((c) => c !== 'All').map((cat) => (
-                  <option key={cat} value={cat} className="bg-theme-purple text-white">
-                    {cat}
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id} className="bg-theme-purple text-white">
+                    {cat.name}
                   </option>
                 ))}
               </select>
@@ -435,26 +481,14 @@ const AdminMenuPage = () => {
             <Input
               label="Price (Rs. PKR)"
               type="number"
-              step="1"
+              step="any"
               value={formData.price}
               onChange={(e) => setFormData({ ...formData, price: e.target.value })}
               placeholder="850"
               error={formErrors.price}
             />
 
-            <Input
-              label="Prep Time"
-              value={formData.prepTime}
-              onChange={(e) => setFormData({ ...formData, prepTime: e.target.value })}
-              placeholder="15-20 min"
-            />
 
-            <Input
-              label="Calories"
-              value={formData.calories}
-              onChange={(e) => setFormData({ ...formData, calories: e.target.value })}
-              placeholder="650 kcal"
-            />
           </div>
 
           <Input
@@ -482,23 +516,8 @@ const AdminMenuPage = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Promo Tag (Optional)"
-              value={formData.tag}
-              onChange={(e) => setFormData({ ...formData, tag: e.target.value })}
-              placeholder="e.g. Bestseller, Chef's Pick, Spicy"
-            />
 
             <div className="flex items-center gap-6 pt-6">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-theme-white">
-                <input
-                  type="checkbox"
-                  checked={formData.isVeg}
-                  onChange={(e) => setFormData({ ...formData, isVeg: e.target.checked })}
-                  className="rounded text-theme-violet focus:ring-theme-violet"
-                />
-                <span>Vegetarian 🌱</span>
-              </label>
 
               <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-theme-white">
                 <input

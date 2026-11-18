@@ -1,138 +1,51 @@
-import api from './api';
-import { INITIAL_MENU_ITEMS } from './mockData';
+import api from './api.js';
 
-const MENU_STORAGE_KEY = 'biit_foodhub_menu_store_v2';
-
-const normalizeDish = (dish) => {
-  if (!dish) return null;
-  return {
-    ...dish,
-    id: String(dish.id || dish._id || `dish-${Date.now()}`),
-    price: Number(dish.price) || 0,
-    rating: dish.rating !== undefined ? Number(dish.rating) : 4.8,
-    reviewsCount: dish.reviewsCount !== undefined ? Number(dish.reviewsCount) : 45,
-    isAvailable: dish.isAvailable !== false,
-  };
-};
-
-const getLocalMenu = () => {
-  const stored = localStorage.getItem(MENU_STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(INITIAL_MENU_ITEMS));
-    return INITIAL_MENU_ITEMS;
-  }
-  try {
-    return JSON.parse(stored);
-  } catch {
-    return INITIAL_MENU_ITEMS;
-  }
-};
-
-const saveLocalMenu = (menu) => {
-  localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(menu));
-};
+const dish = (item) => ({ ...item, isAvailable: item.available });
+const payload = ({ name, description, category, price, image, isAvailable }) => ({
+  name, description, category, price: Number(price), image, available: isAvailable,
+});
 
 export const menuService = {
-  // Get all menu items (Calls real backend first)
-  getAll: async () => {
-    try {
-      const response = await api.get('/menu');
-      const data = response.data;
-      if (Array.isArray(data)) return data.map(normalizeDish);
-      if (Array.isArray(data?.data)) return data.data.map(normalizeDish);
-      if (Array.isArray(data?.items)) return data.items.map(normalizeDish);
-      if (Array.isArray(data?.menu)) return data.menu.map(normalizeDish);
-    } catch {
-      // Backend endpoint not yet active or offline, load seed data
-    }
-    return getLocalMenu().map(normalizeDish);
+  async list({ page = 1, limit = 10, search, category } = {}) {
+    const { data } = await api.get('/menu', { params: { page, limit, search, category } });
+    return { items: data.items.map(dish), pagination: data.pagination };
   },
-
-  // Get single menu item by ID
-  getById: async (id) => {
-    try {
-      const response = await api.get(`/menu/${id}`);
-      if (response.data) return normalizeDish(response.data);
-    } catch {
-      // Fallback
+  async getAll(filters) {
+    const first = await this.list({ ...filters, limit: 100 });
+    const items = [...first.items];
+    for (let page = 2; page <= first.pagination.totalPages; page += 1) {
+      const next = await this.list({ ...filters, page, limit: 100 });
+      items.push(...next.items);
     }
-    const menu = getLocalMenu();
-    const found = menu.find(item => item.id === id || item._id === id);
-    return found ? normalizeDish(found) : null;
+    return items;
   },
-
-  // Create new menu item (Admin)
-  create: async (itemData) => {
-    try {
-      const response = await api.post('/menu', itemData);
-      const created = response.data?.data || response.data?.item || response.data;
-      if (created) {
-        const normalized = normalizeDish(created);
-        const localMenu = getLocalMenu();
-        localMenu.unshift(normalized);
-        saveLocalMenu(localMenu);
-        return normalized;
-      }
-    } catch {
-      // Fallback
-    }
-
-    const localMenu = getLocalMenu();
-    const newItem = normalizeDish({
-      ...itemData,
-      id: `dish-${Date.now()}`,
-    });
-    localMenu.unshift(newItem);
-    saveLocalMenu(localMenu);
-    return newItem;
+  async getById(id) {
+    const { data } = await api.get('/menu/' + encodeURIComponent(id));
+    return dish(data.item);
   },
-
-  // Update menu item (Admin)
-  update: async (id, updatedFields) => {
-    try {
-      const response = await api.put(`/menu/${id}`, updatedFields);
-      const updated = response.data?.data || response.data?.item || response.data;
-      if (updated) {
-        const normalized = normalizeDish(updated);
-        const localMenu = getLocalMenu();
-        const idx = localMenu.findIndex(i => i.id === id || i._id === id);
-        if (idx !== -1) {
-          localMenu[idx] = normalized;
-          saveLocalMenu(localMenu);
-        }
-        return normalized;
-      }
-    } catch {
-      // Fallback
-    }
-
-    const localMenu = getLocalMenu();
-    const idx = localMenu.findIndex(i => i.id === id || i._id === id);
-    if (idx !== -1) {
-      localMenu[idx] = normalizeDish({ ...localMenu[idx], ...updatedFields });
-      saveLocalMenu(localMenu);
-      return localMenu[idx];
-    }
-    return null;
+  async create(item) {
+    const { data } = await api.post('/menu', payload(item));
+    return dish(data.item);
   },
-
-  // Delete menu item (Admin)
-  delete: async (id) => {
-    try {
-      await api.delete(`/menu/${id}`);
-    } catch {
-      // Fallback
-    }
-
-    const localMenu = getLocalMenu();
-    const filtered = localMenu.filter(i => i.id !== id && i._id !== id);
-    saveLocalMenu(filtered);
-    return true;
+  async update(id, item) {
+    const { data } = await api.put('/menu/' + encodeURIComponent(id), payload(item));
+    return dish(data.item);
   },
+  async delete(id) {
+    await api.delete('/menu/' + encodeURIComponent(id));
+  },
+};
 
-  // Reset to initial seed catalog
-  resetToDefault: () => {
-    localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(INITIAL_MENU_ITEMS));
-    return INITIAL_MENU_ITEMS.map(normalizeDish);
-  }
+export const categoryService = {
+  async list() {
+    return (await api.get('/categories')).data.categories;
+  },
+  async save(name, id) {
+    const response = id ? await api.put('/categories/' + encodeURIComponent(id), { name }) :
+      await api.post('/categories', { name });
+    return response.data.category;
+  },
+  async delete(id) {
+    await api.delete('/categories/' + encodeURIComponent(id));
+  },
 };

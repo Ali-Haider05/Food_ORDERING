@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { formatPrice } from '../utils/format';
 import { orderService } from '../services/orderService';
 import OrderCard from '../components/orders/OrderCard';
 import OrderTracker from '../components/orders/OrderTracker';
 import EmptyState from '../components/common/EmptyState';
 import { Package, Clock, RefreshCw, ArrowRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Button from '../components/common/Button';
 
 const OrdersPage = () => {
-  const { user } = useAuth();
+  const location = useLocation();
+  const [error, setError] = useState('');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
@@ -17,11 +18,12 @@ const OrdersPage = () => {
 
   const loadOrders = async () => {
     setLoading(true);
+    setError('');
     try {
-      const data = await orderService.getMyOrders(user?.id);
+      const data = await orderService.getMyOrders();
       setOrders(data);
     } catch (err) {
-      console.error('Error loading orders:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -29,24 +31,15 @@ const OrdersPage = () => {
 
   useEffect(() => {
     loadOrders();
-  }, [user]);
+  }, []);
 
-  const handleAdvanceSimulation = (orderId) => {
-    const updated = orderService.advanceSimulationStep(orderId);
-    if (updated) {
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, ...updated } : o))
-      );
-    }
-  };
-
-  const activeOrders = orders.filter((o) => o.status !== 'Delivered' && o.status !== 'Cancelled');
+  const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled');
   const latestActiveOrder = activeOrders[0];
 
   const filteredOrders = orders.filter((o) => {
     if (statusFilter === 'All') return true;
-    if (statusFilter === 'Active') return o.status !== 'Delivered' && o.status !== 'Cancelled';
-    if (statusFilter === 'Delivered') return o.status === 'Delivered';
+    if (statusFilter === 'Active') return o.status !== 'delivered' && o.status !== 'cancelled';
+    if (statusFilter === 'Delivered') return o.status === 'delivered';
     return true;
   });
 
@@ -96,7 +89,6 @@ const OrdersPage = () => {
           </div>
           <OrderTracker
             order={latestActiveOrder}
-            onAdvanceSimulation={handleAdvanceSimulation}
           />
         </div>
       )}
@@ -118,19 +110,25 @@ const OrdersPage = () => {
                 ? orders.length
                 : tab === 'Active'
                 ? activeOrders.length
-                : orders.filter((o) => o.status === 'Delivered').length
+                : orders.filter((o) => o.status === 'delivered').length
             })
           </button>
         ))}
       </div>
 
       {/* Orders List */}
+      {location.state?.newOrderId && (
+        <p role="status" className="text-sm text-emerald-300">
+          Order #{location.state.newOrderId} confirmed. Total: {formatPrice(location.state.orderTotal)}
+        </p>
+      )}
+      {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
       {loading ? (
         <div className="space-y-4">
           <div className="h-44 bg-[#131A2B] rounded-3xl animate-pulse border border-theme-lavender/15" />
           <div className="h-44 bg-[#131A2B] rounded-3xl animate-pulse border border-theme-lavender/15" />
         </div>
-      ) : filteredOrders.length === 0 ? (
+      ) : error ? null : filteredOrders.length === 0 ? (
         <EmptyState
           icon={Package}
           title="No orders found"
@@ -148,7 +146,6 @@ const OrdersPage = () => {
             <OrderCard
               key={order.id}
               order={order}
-              onAdvanceSimulation={handleAdvanceSimulation}
             />
           ))}
         </div>

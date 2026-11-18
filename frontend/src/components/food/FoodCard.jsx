@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCart } from '../../context/CartContext';
-import { Star, Clock, Flame, Plus, Check, Eye } from 'lucide-react';
+import { Clock, Flame, Plus, Check, Eye } from 'lucide-react';
 import { formatPrice } from '../../utils/format';
 
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
@@ -77,13 +77,6 @@ const FoodCard = ({ dish, onQuickView }) => {
         <span className="font-bold text-theme-lavender bg-theme-midnight-surface border border-theme-lavender/20 px-2 py-0.5 rounded-md text-[10px] uppercase tracking-wider">
           {dish.category}
         </span>
-        <div className="flex items-center gap-1 font-black text-amber-300">
-          <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-          <span>{dish.rating || 4.8}</span>
-          <span className="text-[11px] text-theme-white-muted font-medium">
-            ({dish.reviewsCount || 45})
-          </span>
-        </div>
       </div>
 
       {/* Dish Title & Description - Crystal Clear High Contrast */}

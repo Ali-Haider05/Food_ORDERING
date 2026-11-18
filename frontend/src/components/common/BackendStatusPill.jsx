@@ -44,7 +44,7 @@ const BackendStatusPill = ({ compact = false }) => {
           />
         </span>
         <span className="text-white font-mono text-[11px] font-semibold">
-          {status.online ? 'NeDB Backend: Live' : 'Backend: Local Engine'}
+          {status.online ? 'NeDB Backend: Live' : 'Backend unavailable'}
         </span>
       </div>
     );
@@ -77,7 +77,7 @@ const BackendStatusPill = ({ compact = false }) => {
           </>
         ) : (
           <>
-            Backend: <strong className="text-white font-black">Local Fallback (Express offline)</strong>
+            Backend: <strong className="text-white font-black">Unavailable</strong>
           </>
         )}
       </span>

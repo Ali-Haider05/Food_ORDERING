@@ -1,91 +1,20 @@
-# 🥗 GourmetBite — Premium Food Ordering Web Application
+# BIIT Food Hub frontend
 
-A modern, visually stunning, and full-featured frontend web application engineered for the University Full-Stack Web Development Competition.
+React and Vite storefront for browsing the live menu, placing orders, and tracking order status. Admins manage categories, menu items, and order status, and view reported dashboard totals.
 
----
+## Local development
 
-## 🌟 Key Highlights & University Evaluation Criteria
+From `frontend/`, copy `.env.example` to the ignored `.env` file. The example points to the live Render API. For local development against a local API, set `VITE_API_URL=http://localhost:5000/api`.
 
-- **Tailwind Color Architecture**:
-  - **Green (Emerald)**: Primary brand actions, order confirmations, active state accents.
-  - **Beige (Warm Cream)**: Clean luxurious backgrounds (`#FDFBF7`, `#F8F5EE`), subtle cards, and borders.
-  - **Orange (Vibrant Amber)**: High-priority badges, pricing, notifications, and secondary highlights.
-- **Visual Design & Micro-Interactions**:
-  - 60fps card hover lift and scale effects.
-  - Custom SVG weekly revenue velocity charts and order status progress indicators.
-  - Interactive live order status tracking with real-time step transitions (`Pending` ➡️ `Preparing` ➡️ `Out for Delivery` ➡️ `Delivered`).
-  - Shimmering skeleton loaders for cards, tables, and statistics.
-  - Smooth slide-in cart drawer and celebratory confetti explosion on checkout.
-- **Authentication & Role-Based Authorization**:
-  - JWT token storage in `localStorage`.
-  - Automatic `Bearer` token attachment via Axios request interceptors.
-  - Protected customer routes and restricted Admin routes.
-  - Quick-Fill evaluation buttons for judges (1-click Customer & Admin login).
-- **Backend Integration & Resilience**:
-  - Automated health check integration with backend (`/api/health`).
-  - Seamless fallback data persistence engine in `localStorage` when testing without an active backend server.
-
----
-
-## 👥 Demo Accounts (For Judges & Evaluators)
-
-| Role | Email | Password | Access |
-|---|---|---|---|
-| **Customer** | `customer@foodie.com` | `pass123` | Home, Menu, Cart, My Orders, Live Tracker, Reordering |
-| **Restaurant Admin** | `admin@foodie.com` | `admin123` | Executive Dashboard, Menu Item Manager, Orders Pipeline |
-
-*Tip: On the `/login` page, click either "Customer Demo" or "Admin Demo" for instant 1-click credential filling!*
-
----
-
-## 🎟️ Available Voucher Coupons
-
-- `FOODIE20` — 20% Off entire order
-- `FREEDEL` — Free express thermal delivery
-- `WELCOME10` — $10 Off orders over $30
-
----
-
-## 🚀 Getting Started
-
-### 1. Install Dependencies
-```bash
-cd frontend
-npm install
-```
-
-### 2. Run Development Server
-```bash
+```sh
+npm ci
 npm run dev
-```
-The app will run locally at `http://localhost:5173`.
-
-### 3. Build for Production
-```bash
+npm test
 npm run build
 ```
-Creates an optimized, production-ready bundle in `dist/`.
 
----
+Create a customer account through signup. Admin sign-in requires an account provisioned on the backend. The client validates saved tokens with `GET /auth/me`. Checkout sends the delivery address and menu item quantities, and the confirmation shows the total returned by the API.
 
-## 📂 Project Architecture
+## Vercel
 
-```
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── common/       # Button, Input, Modal, Badge, Skeleton, EmptyState, BackendStatusPill
-│   │   ├── dashboard/    # StatCard, RevenueChart, StatusDonutChart
-│   │   ├── food/         # FoodCard, FoodQuickViewModal, CategoryPills
-│   │   ├── layout/       # Navbar, Footer, CartDrawer
-│   │   └── orders/       # OrderTracker, OrderCard
-│   ├── context/          # AuthContext, CartContext, ToastContext
-│   ├── pages/            # Home, Login, Signup, Cart, Orders, AdminDashboard, AdminMenu, AdminOrders, NotFound
-│   ├── routes/           # AppRoutes, ProtectedRoute, AdminRoute, ScrollToTop
-│   ├── services/         # api.js, authService.js, menuService.js, orderService.js, statsService.js, healthService.js
-│   ├── App.jsx
-│   ├── index.css
-│   └── main.jsx
-├── tailwind.config.js
-└── vite.config.js
-```
+Use the Vite preset with Root Directory `frontend`, Install Command `npm ci`, Build Command `npm run build`, and Output Directory `dist`. Set `VITE_API_URL=https://food-ordering-s8ga.onrender.com/api` in Vercel. Add the exact frontend origin to Render's `CLIENT_URL` before testing in a browser. Only public configuration belongs in Vite variables. The included `vercel.json` routes direct visits through React Router.
