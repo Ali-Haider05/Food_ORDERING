@@ -12,7 +12,7 @@ import Button from '../common/Button';
 import Badge from '../common/Badge';
 import Modal from '../common/Modal';
 import OrderTracker from './OrderTracker';
-import { formatPrice } from '../../utils/format';
+import { formatPrice, getDishImage } from '../../utils/format';
 
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
 
@@ -85,7 +85,7 @@ const OrderCard = ({ order }) => {
             <div key={idx} className="flex items-center justify-between text-xs py-1">
               <div className="flex items-center gap-2.5 min-w-0">
                 <img
-                  src={item.image}
+                  src={getDishImage(item)}
                   alt={item.name}
                   className="w-10 h-10 rounded-xl object-cover border border-theme-lavender/15 shrink-0"
                   onError={(e) => {

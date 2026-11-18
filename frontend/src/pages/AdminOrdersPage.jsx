@@ -13,7 +13,7 @@ import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
 import { TableRowSkeleton } from '../components/common/Skeleton';
-import { formatPrice } from '../utils/format';
+import { formatPrice, getDishImage } from '../utils/format';
 
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
 
@@ -304,7 +304,7 @@ const AdminOrdersPage = () => {
                   <div key={idx} className="py-2.5 px-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <img
-                        src={item.image}
+                        src={getDishImage(item)}
                         alt={item.name}
                         className="w-10 h-10 rounded-xl object-cover border border-theme-lavender/25"
                         onError={(e) => {

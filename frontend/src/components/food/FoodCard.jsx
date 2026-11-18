@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { Clock, Flame, Plus, Check, Eye } from 'lucide-react';
-import { formatPrice } from '../../utils/format';
+import { formatPrice, getDishImage } from '../../utils/format';
 
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
 
@@ -28,7 +28,7 @@ const FoodCard = ({ dish, onQuickView }) => {
       {/* Image Container with Floating Badges */}
       <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-theme-purple-dark mb-4 border border-theme-lavender/10">
         <img
-          src={dish.image}
+          src={getDishImage(dish)}
           alt={dish.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"

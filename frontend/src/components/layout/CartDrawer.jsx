@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag, Sparkles } from 'lucide-react';
 import Button from '../common/Button';
-import { formatPrice } from '../../utils/format';
+import { formatPrice, getDishImage } from '../../utils/format';
 
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
 
@@ -78,7 +78,7 @@ const CartDrawer = () => {
                   className="flex gap-3.5 p-3 rounded-2xl bg-[#131A2B] border border-theme-lavender/15 hover:border-theme-lavender/30 transition shadow-sm"
                 >
                   <img
-                    src={item.image}
+                    src={getDishImage(item)}
                     alt={item.name}
                     className="w-16 h-16 rounded-xl object-cover shrink-0 border border-theme-lavender/15"
                     onError={(e) => {

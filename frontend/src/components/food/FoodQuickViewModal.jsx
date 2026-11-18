@@ -3,7 +3,7 @@ import { useCart } from '../../context/CartContext';
 import { Plus, Minus } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
-import { formatPrice } from '../../utils/format';
+import { formatPrice, getDishImage } from '../../utils/format';
 
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
 
@@ -26,7 +26,7 @@ const FoodQuickViewModal = ({ dish, isOpen, onClose }) => {
         <div className="space-y-4">
           <div className="relative aspect-square rounded-2xl overflow-hidden bg-theme-purple-dark border border-theme-lavender/20">
             <img
-              src={dish.image}
+              src={getDishImage(dish)}
               alt={dish.name}
               className="w-full h-full object-cover"
               onError={(e) => {

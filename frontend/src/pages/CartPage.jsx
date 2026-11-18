@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import EmptyState from '../components/common/EmptyState';
-import { formatPrice } from '../utils/format';
+import { formatPrice, getDishImage } from '../utils/format';
 
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
 
@@ -153,7 +153,7 @@ const CartPage = () => {
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <img
-                      src={item.image}
+                      src={getDishImage(item)}
                       alt={item.name}
                       className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover shrink-0 border border-theme-lavender/20"
                       onError={(e) => {

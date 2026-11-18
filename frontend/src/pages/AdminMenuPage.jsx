@@ -15,7 +15,7 @@ import Input from '../components/common/Input';
 import Modal from '../components/common/Modal';
 import Badge from '../components/common/Badge';
 import { TableRowSkeleton } from '../components/common/Skeleton';
-import { formatPrice } from '../utils/format';
+import { formatPrice, getDishImage } from '../utils/format';
 
 const FALLBACK_FOOD_IMG = 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=800&q=80';
 
@@ -341,7 +341,7 @@ const AdminMenuPage = () => {
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3.5">
                         <img
-                          src={item.image}
+                          src={getDishImage(item)}
                           alt={item.name}
                           className="w-12 h-12 rounded-xl object-cover border border-theme-lavender/25 shrink-0"
                           onError={(e) => {
