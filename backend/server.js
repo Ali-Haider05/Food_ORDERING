@@ -50,11 +50,14 @@ async function start() {
   const datastore = createDatastore('test.db');
   const Category = require('./models/Category');
   const MenuItem = require('./models/MenuItem');
-  await Promise.all([datastore.autoloadPromise, User.ready, Category.ready, MenuItem.ready]);
+  const Order = require('./models/Order');
+  await Promise.all([datastore.autoloadPromise, User.ready, Category.ready, MenuItem.ready, Order.ready]);
 
   app.use('/api/auth', require('./routes/authRoutes'));
   app.use('/api/categories', require('./routes/categoryRoutes'));
   app.use('/api/menu', require('./routes/menuRoutes'));
+  app.use('/api/orders', require('./routes/orderRoutes'));
+  app.use('/api/admin', require('./routes/adminRoutes'));
   app.use('/api', (_request, response) => {
     response.status(404).json({ success: false, message: 'API route not found' });
   });

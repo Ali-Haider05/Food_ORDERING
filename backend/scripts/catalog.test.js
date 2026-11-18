@@ -76,17 +76,21 @@ async function request(base, route, status, { method, body, token } = {}) {
   return { data, headers: response.headers };
 }
 
-test('seed creates one hashed admin, five categories and fifteen items, then preserves all records', async (t) => {
+test('seed creates one hashed admin, five categories, fifteen items, and four orders, then preserves all records', async (t) => {
   const env = sandbox(t);
   const first = seed(env);
   assert.equal(first.status, 0, first.stderr);
-  assert.match(first.stdout, /Admin created: 1. Categories created: 5. Menu items created: 15/);
+  assert.match(first.stdout, /Admin created: 1. Categories created: 5. Menu items created: 15. Orders created: 4/);
   assert.ok(!first.stdout.includes(env.ADMIN_PASSWORD));
 
   const users = await openData(env, 'users.db');
   const categories = await openData(env, 'categories.db');
   const menu = await openData(env, 'menu.db');
+  const orders = await openData(env, 'orders.db');
+  const initialOrders = await orders.findAsync({}).sort({ _id: 1 });
   const initialUsers = await users.findAsync({});
+  assert.deepEqual(initialOrders.map(({ status }) => status).sort(), ['cancelled', 'delivered', 'pending', 'preparing']);
+  assert.ok(initialOrders.every(({ userId, totalCents }) => userId === initialUsers[0]._id && totalCents > 0));
   const initialCategories = await categories.findAsync({}).sort({ _id: 1 });
   const initialMenu = await menu.findAsync({}).sort({ _id: 1 });
   assert.equal(initialUsers.length, 1);
@@ -103,12 +107,15 @@ test('seed creates one hashed admin, five categories and fifteen items, then pre
     assert.ok(item.price > 0);
     assert.equal(new URL(item.image).protocol, 'https:');
   }
+  assert.ok(initialOrders.every(({ items }) =>
+    items.every(({ menuItemId }) => initialMenu.some(({ _id }) => _id === menuItemId))));
   const reseed = seed({ ...env, ADMIN_NAME: 'Changed', ADMIN_PASSWORD: randomBytes(24).toString('hex') });
   assert.equal(reseed.status, 0, reseed.stderr);
-  assert.match(reseed.stdout, /Admin created: 0. Categories created: 0. Menu items created: 0/);
+  assert.match(reseed.stdout, /Admin created: 0. Categories created: 0. Menu items created: 0. Orders created: 0/);
   assert.deepEqual(await (await openData(env, 'users.db')).findAsync({}), initialUsers);
   assert.deepEqual(await (await openData(env, 'categories.db')).findAsync({}).sort({ _id: 1 }), initialCategories);
   assert.deepEqual(await (await openData(env, 'menu.db')).findAsync({}).sort({ _id: 1 }), initialMenu);
+  assert.deepEqual(await (await openData(env, 'orders.db')).findAsync({}).sort({ _id: 1 }), initialOrders);
 });
 
 test('seed requires credentials and never promotes or overwrites an existing regular account', async (t) => {
@@ -204,5 +211,144 @@ test('signup and login enforce independent IP limits and health remains availabl
       assert.ok(headers.has('ratelimit'));
     }
     await request(base, '/health', 200);
+  });
+});
+
+test('checkout validates availability and quantities, snapshots server prices, and isolates order history', { timeout: 20000 }, async (t) => {
+  const env = sandbox(t);
+  const seeded = seed(env);
+  assert.equal(seeded.status, 0, seeded.stderr);
+  let saved;
+  let customerToken;
+  await withBackend(env, async (base) => {
+    const { data: admin } = await request(base, '/auth/login', 200, {
+      body: { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD },
+    });
+    const signUp = (email) => request(base, '/auth/signup', 201, {
+      body: { name: 'Customer', email, password: randomBytes(16).toString('hex') },
+    });
+    const { data: customer } = await signUp('customer@example.test');
+    const { data: other } = await signUp('other@example.test');
+    customerToken = customer.token;
+    const { data: catalog } = await request(base, '/menu?limit=100', 200);
+    const [first, second] = catalog.items;
+    const fields = ({ name, description, image, category }) => ({ name, description, image, category });
+    await request(base, '/menu/' + first.id, 200, {
+      token: admin.token, method: 'PUT', body: { ...fields(first), price: 1.005 },
+    });
+    await request(base, '/menu/' + second.id, 200, {
+      token: admin.token, method: 'PUT', body: { ...fields(second), price: 0.1 },
+    });
+    const line = { menuItemId: first.id, quantity: 3 };
+    const body = { address: '  12 Example Street  ', items: [line, { menuItemId: second.id, quantity: 2 }] };
+    await request(base, '/orders', 401, { body });
+    await request(base, '/orders/my', 401);
+    await request(base, '/orders', 401, { method: 'GET' });
+    await request(base, '/orders', 403, { token: customerToken });
+    await request(base, '/admin/stats', 401);
+    await request(base, '/admin/stats', 403, { token: customerToken });
+
+    for (const invalid of [
+      { address: ' ' }, { address: 'x'.repeat(501) }, { address: {} }, { address: '-----' },
+      { items: [] }, { items: [null] }, { items: [line, line] },
+      ...[0, -1, '1', 1.5, 100].map((quantity) => ({ items: [{ ...line, quantity }] })),
+      { items: [{ ...line, unitPrice: 0.01 }] }, { total: 0.01 },
+      { userId: other.user.id }, { status: 'delivered' },
+    ]) {
+      await request(base, '/orders', 400, { token: customerToken, body: { ...body, ...invalid } });
+    }
+    await request(base, '/orders', 404, {
+      token: customerToken, body: { ...body, items: [{ ...line, menuItemId: '0'.repeat(16) }] },
+    });
+
+    const { data: created } = await request(base, '/orders', 201, { token: customerToken, body });
+    saved = created.order;
+    assert.equal(saved.userId, customer.user.id);
+    assert.equal(saved.status, 'pending');
+    assert.equal(saved.address, '12 Example Street');
+    assert.equal(saved.total, 3.23);
+    assert.deepEqual(saved.items[0], {
+      menuItemId: first.id, name: first.name, quantity: 3, unitPrice: 1.01, subtotal: 3.03,
+    });
+    assert.equal(saved.items[1].subtotal, 0.2);
+    assert.equal(saved.updatedAt, saved.createdAt);
+
+    await request(base, '/menu/' + first.id, 200, {
+      token: admin.token, method: 'PUT', body: { ...fields(first), name: 'New name', price: 19, available: false },
+    });
+    await request(base, '/orders', 409, { token: customerToken, body });
+    await request(base, '/menu/' + first.id, 200, { token: admin.token, method: 'DELETE' });
+    const { data: mine } = await request(base, '/orders/my', 200, { token: customerToken });
+    const { data: theirs } = await request(base, '/orders/my', 200, { token: other.token });
+    const { data: all } = await request(base, '/orders', 200, { token: admin.token });
+    assert.deepEqual(mine.orders, [saved]);
+    assert.deepEqual(theirs.orders, []);
+    assert.equal(all.orders.length, 5);
+    assert.ok(all.orders.some((order) => order.id === saved.id));
+    assert.ok(all.orders.every((order) => !Object.hasOwn(order, 'demoKey')));
+  });
+  await withBackend(env, async (base) => {
+    assert.deepEqual((await request(base, '/orders/my', 200, { token: customerToken })).data.orders, [saved]);
+  });
+});
+
+test('admin status flow and dashboard totals include only delivered revenue', { timeout: 20000 }, async (t) => {
+  const env = sandbox(t);
+  await withBackend(env, async (base) => {
+    await request(base, '/health', 200);
+  });
+  const seeded = seed(env);
+  assert.equal(seeded.status, 0, seeded.stderr);
+  await withBackend(env, async (base) => {
+    const { data: admin } = await request(base, '/auth/login', 200, {
+      body: { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD },
+    });
+    const token = admin.token;
+    const { data: customer } = await request(base, '/auth/signup', 201, {
+      body: { name: 'Customer', email: 'customer@example.test', password: randomBytes(16).toString('hex') },
+    });
+    const { data: starting } = await request(base, '/orders', 200, { token });
+    const initialRevenue = starting.orders.find(({ status }) => status === 'delivered').total;
+    const { data: stats } = await request(base, '/admin/stats', 200, { token });
+    assert.deepEqual(stats.stats, {
+      totalOrders: 4, deliveredRevenue: initialRevenue, pendingOrders: 1, totalUsers: 2, totalMenuItems: 15,
+    });
+    const { data: catalog } = await request(base, '/menu', 200);
+    const body = { address: '12 Example Street', items: [{ menuItemId: catalog.items[0].id, quantity: 1 }] };
+    const place = async () => (await request(base, '/orders', 201, { token: customer.token, body })).data.order;
+    const a = await place();
+    const b = await place();
+    const c = await place();
+    const setStatus = (id, status, expected, bearer = token) => request(base, '/orders/' + id + '/status', expected, {
+      token: bearer, method: 'PUT', body: { status },
+    });
+    await setStatus(a.id, 'preparing', 401, '');
+    await setStatus(a.id, 'preparing', 403, customer.token);
+    await setStatus('0'.repeat(16), 'preparing', 404);
+    await setStatus(a.id, 'shipped', 400);
+    await setStatus(a.id, 'delivered', 409);
+    assert.equal((await setStatus(a.id, 'preparing', 200)).data.order.status, 'preparing');
+    const delivered = (await setStatus(a.id, 'delivered', 200)).data.order;
+    assert.ok(delivered.updatedAt >= a.updatedAt);
+    await setStatus(a.id, 'cancelled', 409);
+    await setStatus(b.id, 'cancelled', 200);
+    await setStatus(b.id, 'preparing', 409);
+    await setStatus(c.id, 'preparing', 200);
+    const competing = await Promise.allSettled([
+      setStatus(c.id, 'cancelled', 200), setStatus(c.id, 'delivered', 200),
+    ]);
+    assert.equal(competing.filter(({ status }) => status === 'fulfilled').length, 1);
+    assert.equal(competing.find(({ status }) => status === 'rejected').reason.actual, 409);
+    const won = competing.find(({ status }) => status === 'fulfilled').value.data.order;
+
+    const { data: updated } = await request(base, '/admin/stats', 200, { token });
+    assert.deepEqual(updated.stats, {
+      totalOrders: 7,
+      deliveredRevenue: (Math.round(initialRevenue * 100) + Math.round(a.total * 100) +
+        (won.status === 'delivered' ? Math.round(c.total * 100) : 0)) / 100,
+      pendingOrders: 1,
+      totalUsers: 2,
+      totalMenuItems: 15,
+    });
   });
 });

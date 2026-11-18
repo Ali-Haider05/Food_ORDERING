@@ -40,4 +40,8 @@ function findById(id) {
   return users.findOneAsync({ _id: id });
 }
 
-module.exports = { ready, normalizeEmail, publicUser, createUser, createAdmin, findByEmail, findById };
+function count() {
+  return users.countAsync({}).execAsync();
+}
+
+module.exports = { count, ready, normalizeEmail, publicUser, createUser, createAdmin, findByEmail, findById };

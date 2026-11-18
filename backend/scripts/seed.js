@@ -48,19 +48,20 @@ async function seed() {
   const User = require('../models/User');
   const Category = require('../models/Category');
   const MenuItem = require('../models/MenuItem');
-  await Promise.all([User.ready, Category.ready, MenuItem.ready]);
+  const Order = require('../models/Order');
+  await Promise.all([User.ready, Category.ready, MenuItem.ready, Order.ready]);
 
   const existing = await User.findByEmail(credentials.email);
   if (existing && existing.role !== 'admin') {
     throw new Error('ADMIN_EMAIL belongs to a non-admin account; use a different email.');
   }
-  if (!existing) {
-    const password = await bcrypt.hash(credentials.password, 12);
-    await User.createAdmin({ ...credentials, password });
-  }
+  const admin = existing || await User.createAdmin({
+    ...credentials, password: await bcrypt.hash(credentials.password, 12),
+  });
 
   let categoryCount = 0;
   let itemCount = 0;
+  const demoMenu = [];
   for (const [name, items] of Object.entries(catalog)) {
     let category = await Category.findByName(name);
     if (!category) {
@@ -69,19 +70,38 @@ async function seed() {
     }
 
     for (const [itemName, description, price] of items) {
-      if (await MenuItem.findByNameInCategory(itemName, category._id)) continue;
-      await MenuItem.create({
-        name: itemName,
-        description,
-        price,
-        image: 'https://placehold.co/640x480/png?text=' + encodeURIComponent(itemName),
-        category: category._id,
-      });
-      itemCount += 1;
+      let item = await MenuItem.findByNameInCategory(itemName, category._id);
+      if (!item) {
+        item = await MenuItem.create({
+          name: itemName,
+          description,
+          price,
+          image: 'https://placehold.co/640x480/png?text=' + encodeURIComponent(itemName),
+          category: category._id,
+        });
+        itemCount += 1;
+      }
+      demoMenu.push(item);
     }
   }
-  console.log('Seed complete. Admin created: %d. Categories created: %d. Menu items created: %d.',
-    existing ? 0 : 1, categoryCount, itemCount);
+  const orderCount = await seedOrders(Order, admin._id, demoMenu);
+  console.log('Seed complete. Admin created: %d. Categories created: %d. Menu items created: %d. Orders created: %d.',
+    existing ? 0 : 1, categoryCount, itemCount, orderCount);
+}
+
+async function seedOrders(Order, userId, menu) {
+  const statuses = ['pending', 'preparing', 'delivered', 'cancelled'];
+  let created = 0;
+  for (const [index, status] of statuses.entries()) {
+    const demoKey = 'demo-order-' + (index + 1);
+    if (await Order.findDemo(demoKey)) continue;
+    const item = menu[index];
+    const lines = [{ menuItemId: item._id, quantity: index + 1 }];
+    const checkout = Order.checkoutItems(lines, new Map([[item._id, item]]));
+    await Order.create({ ...checkout, userId, address: '100 Demo Street, Sample City', status, demoKey });
+    created += 1;
+  }
+  return created;
 }
 
 seed().catch((error) => {

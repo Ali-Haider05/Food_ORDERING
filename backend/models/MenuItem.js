@@ -11,6 +11,10 @@ function findById(id) {
   return menu.findOneAsync({ _id: id });
 }
 
+function findByIds(ids) {
+  return menu.findAsync({ _id: { $in: ids } }).execAsync();
+}
+
 function hasCategory(category) {
   return menu.findOneAsync({ category });
 }
@@ -45,4 +49,4 @@ function remove(id) {
   return menu.removeAsync({ _id: id });
 }
 
-module.exports = { ready: menu.autoloadPromise, publicItem, findById, hasCategory, findByNameInCategory, count, list, create, update, remove };
+module.exports = { ready: menu.autoloadPromise, publicItem, findById, findByIds, hasCategory, findByNameInCategory, count, list, create, update, remove };

@@ -1,6 +1,6 @@
 # Food Ordering Backend
 
-The backend uses Express and persistent, file-based NeDB. It serves the health check and JWT authentication routes.
+The backend uses Express and persistent, file-based NeDB. It serves health, authentication, catalog, checkout, and admin dashboard APIs.
 
 ## Installation and local setup
 
@@ -21,7 +21,7 @@ Put the generated value in `.env` as `JWT_SECRET`, then run `npm run dev` or `np
 | `PORT` | HTTP port. Defaults to `5000` locally. |
 | `NODE_ENV` | Use `development` locally and `production` on Render. |
 | `CLIENT_URL` | Comma-separated frontend origins with scheme and optional port. Omit trailing slashes. |
-| `DATA_DIR` | Directory for `test.db` and `users.db`. Relative paths resolve from `backend/`. Defaults to `./data`. |
+| `DATA_DIR` | Directory for all NeDB files, including `orders.db`. Relative paths resolve from `backend/`. Defaults to `./data`. |
 | `JWT_SECRET` | Required signing secret. Startup rejects empty values and the example placeholders. |
 
 ## Authentication API
@@ -96,7 +96,7 @@ From `backend/`, run:
 npm run seed
 ```
 
-On an empty database this creates one admin, five categories, and fifteen demo items. Reruns with the same admin email reuse the existing admin. A matching non-admin email aborts the command. The script reuses categories by normalized name and items by category and name. It preserves existing records and stores new admin passwords as bcrypt hashes. Run it separately from the web server and only against the intended database.
+On an empty database this creates one admin, five categories, fifteen demo items, and four demo orders owned by the seeded admin. Demo orders are keyed so reruns preserve them. Reruns with the same admin email reuse the existing admin. A matching non-admin email aborts the command. The script reuses categories by normalized name and items by category and name. It preserves existing records and stores new admin passwords as bcrypt hashes. Run it separately from the web server and only against the intended database.
 
 ## Catalog API
 
@@ -110,6 +110,51 @@ On an empty database this creates one admin, five categories, and fifteen demo i
 Category writes accept `{ "name": "Burgers" }`. A duplicate name or deletion of a referenced category returns HTTP 409. Menu writes require `name`, `description`, positive numeric `price`, HTTP(S) `image` URL, and `category` ID. The optional boolean `available` defaults to `true` for new items and retains its existing value on updates when omitted.
 
 `GET /api/menu` accepts `search`, `category`, `available=true|false`, `page`, and `limit` together. Responses include `items` and `pagination` with `page`, `limit`, `total`, and `totalPages`. The default page size is 10 and the maximum is 100. Category and menu files are `categories.db` and `menu.db` under `DATA_DIR`.
+
+## Orders and checkout
+
+All order routes require `Authorization: Bearer JWT_TOKEN`. Admin routes also require an admin account.
+
+| Endpoint | Access | Result |
+| --- | --- | --- |
+| `POST /api/orders` | Authenticated | Creates a pending order and returns HTTP 201 with `order` |
+| `GET /api/orders/my` | Authenticated | Returns the caller's `orders`, newest first |
+| `GET /api/orders` | Admin | Returns all `orders`, newest first |
+| `PUT /api/orders/:id/status` | Admin | Updates the order and returns HTTP 200 with `order` |
+
+Example checkout request:
+
+```json
+{
+  "address": "12 Example Street, Sample City",
+  "items": [
+    { "menuItemId": "MENU_ITEM_ID", "quantity": 2 }
+  ]
+}
+```
+
+Use 1–50 distinct menu items, quantities from 1–99, and a delivery address of 5–500 characters after trimming. The server looks up each current menu price and availability. It rounds each unit price to cents before multiplying by quantity and stores the item name, price, and quantity with the order. Later catalog edits or deletions leave order history intact. Responses include `total`, each line's `unitPrice` and `subtotal`, the status, and timestamps. NeDB stores orders in `orders.db` under `DATA_DIR`.
+
+Send `{ "status": "preparing" }` to update status. Allowed transitions are pending → preparing → delivered, or pending/preparing → cancelled. Delivered and cancelled orders are final. Invalid data or status values return HTTP 400. Missing items or orders return 404, unavailable items and invalid transitions return 409, and prices or totals that cannot be represented in cents return 422.
+
+## Admin dashboard
+
+`GET /api/admin/stats` requires an admin Bearer token and returns HTTP 200.
+
+```json
+{
+  "success": true,
+  "stats": {
+    "totalOrders": 4,
+    "deliveredRevenue": 27,
+    "pendingOrders": 1,
+    "totalUsers": 1,
+    "totalMenuItems": 15
+  }
+}
+```
+
+Delivered revenue sums the stored totals of delivered orders. Pending orders count only the `pending` status. Total users includes admins, and total menu items includes unavailable items.
 
 ## Local verification
 
