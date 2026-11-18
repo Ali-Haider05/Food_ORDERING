@@ -14,14 +14,22 @@ function publicUser(user) {
   return { id: user._id, name: user.name, email: user.email, role: user.role };
 }
 
-function createUser({ name, email, password }) {
+function insertUser({ name, email, password }, role) {
   return users.insertAsync({
     name: name.trim(),
     email: normalizeEmail(email),
     password,
-    role: 'user',
+    role,
     createdAt: new Date().toISOString(),
   });
+}
+
+function createUser(fields) {
+  return insertUser(fields, 'user');
+}
+
+function createAdmin(fields) {
+  return insertUser(fields, 'admin');
 }
 
 function findByEmail(email) {
@@ -32,4 +40,4 @@ function findById(id) {
   return users.findOneAsync({ _id: id });
 }
 
-module.exports = { ready, normalizeEmail, publicUser, createUser, findByEmail, findById };
+module.exports = { ready, normalizeEmail, publicUser, createUser, createAdmin, findByEmail, findById };

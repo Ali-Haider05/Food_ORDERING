@@ -35,6 +35,11 @@ function handleError(error, _request, response, next) {
 }
 
 async function start() {
+  const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
+  if (!Number.isSafeInteger(proxyHops) || proxyHops < 0) {
+    throw new Error('TRUST_PROXY_HOPS must be a nonnegative integer');
+  }
+  app.set('trust proxy', proxyHops);
   const secret = process.env.JWT_SECRET?.trim();
   if (!secret || ['replace_with_a_secure_random_secret', 'replace_with_your_generated_jwt_secret'].includes(secret)) {
     throw new Error('Set JWT_SECRET to a secure value before starting the backend');
@@ -43,9 +48,13 @@ async function start() {
   const createDatastore = require('./config/db');
   const User = require('./models/User');
   const datastore = createDatastore('test.db');
-  await Promise.all([datastore.autoloadPromise, User.ready]);
+  const Category = require('./models/Category');
+  const MenuItem = require('./models/MenuItem');
+  await Promise.all([datastore.autoloadPromise, User.ready, Category.ready, MenuItem.ready]);
 
   app.use('/api/auth', require('./routes/authRoutes'));
+  app.use('/api/categories', require('./routes/categoryRoutes'));
+  app.use('/api/menu', require('./routes/menuRoutes'));
   app.use('/api', (_request, response) => {
     response.status(404).json({ success: false, message: 'API route not found' });
   });
